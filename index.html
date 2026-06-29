@@ -120,6 +120,49 @@
     aside::-webkit-scrollbar{width:8px;} aside::-webkit-scrollbar-thumb{background:#2a3344;border-radius:8px;}
   }
   @media(prefers-reduced-motion:reduce){#bubble{transition:none;}}
+
+  /* ---------- Normal Mode start screen ---------- */
+  #start{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;justify-content:space-between;
+    pointer-events:none;opacity:1;transition:opacity .4s ease;}
+  #start.hide{opacity:0;pointer-events:none!important;}
+  #start.hide *{pointer-events:none!important;}
+  .start-top{pointer-events:auto;padding:max(54px,calc(env(safe-area-inset-top) + 46px)) 20px 0;text-align:center;
+    background:linear-gradient(#070809ee,#07080900);}
+  .start-kicker{font:800 11px Inter;letter-spacing:4px;text-transform:uppercase;color:var(--accent);}
+  .start-title{margin:6px 0 4px;font-family:Anton,Impact,sans-serif;font-weight:400;font-size:clamp(26px,7vw,40px);letter-spacing:.5px;text-transform:uppercase;}
+  .start-sub{margin:0 auto;max-width:440px;color:var(--muted);font:500 13px Inter;line-height:1.5;}
+  .start-bottom{pointer-events:auto;padding:14px 14px max(18px,env(safe-area-inset-bottom));
+    background:linear-gradient(#07080900,#070809f2 38%);}
+  .start-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:760px;margin:0 auto 12px;}
+  .scard{border:1px solid var(--border);background:linear-gradient(#1a2030,#141925);border-radius:16px;
+    padding:16px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:9px;color:var(--text);transition:transform .12s,border-color .12s;}
+  .scard:active{transform:translateY(1px);}
+  .scard.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 30px #ff2e7233;}
+  .scard .ring{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:30px;
+    background:radial-gradient(120% 120% at 50% 25%,#2a3242,#0d1018);border:1px solid var(--border-2);}
+  .scard .nm{font:800 12px Inter;text-align:center;line-height:1.15;}
+  .scard .badge{font:700 8.5px Inter;letter-spacing:1.5px;text-transform:uppercase;color:var(--good);
+    border:1px solid #1e4d40;background:#0e2a23;border-radius:999px;padding:3px 8px;}
+  .start-cta{display:block;width:100%;max-width:760px;margin:0 auto;border:none;border-radius:14px;
+    padding:15px;font:900 14px Inter;letter-spacing:.3px;color:#11141c;background:var(--accent);transition:opacity .2s,filter .2s;}
+  .start-cta:disabled{background:var(--card-2);color:var(--muted);}
+  .start-cta:not(:disabled):active{filter:brightness(.94);}
+
+  /* ---------- Asset checklist ---------- */
+  .checklist{display:flex;flex-direction:column;gap:6px;}
+  .crow{display:flex;align-items:center;gap:9px;border:1px solid var(--border);background:var(--card);border-radius:10px;padding:8px 10px;}
+  .crow .stat{width:18px;height:18px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font:900 11px Inter;
+    background:#2a1d23;color:#ff7b9b;border:1px solid #5a2a38;}
+  .crow.ok .stat{background:#0e2a23;color:#3ce0b0;border-color:#1e4d40;}
+  .crow .meta{flex:1;min-width:0;}
+  .crow .meta b{display:block;font:700 11.5px Inter;}
+  .crow .meta code{display:block;font:500 10px Inter;color:var(--muted-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .crow .tag{font:800 8.5px Inter;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+  .crow.ok .tag{color:var(--good);}
+
+  /* editor hidden until a character is chosen */
+  #dock.gated{display:none;}
+  @media(min-width:981px){ #dock.gated{display:none;} }
 </style>
 </head>
 <body>
@@ -145,6 +188,19 @@
 
 <div id="bubble"><div class="txt"></div><small>fictional slogan</small></div>
 
+<!-- NORMAL MODE start screen: pick a character (all completely regular). No political options shown yet. -->
+<div id="start">
+  <div class="start-top">
+    <div class="start-kicker">Normal Mode</div>
+    <h1 class="start-title">Choose your character</h1>
+    <p class="start-sub">Four regular people. Pick one to preview — nothing political appears until you start customizing.</p>
+  </div>
+  <div class="start-bottom">
+    <div class="start-cards" id="startCards"></div>
+    <button class="start-cta" id="startCta" disabled>Pick a character to continue</button>
+  </div>
+</div>
+
 <div id="dock">
   <div class="grip" id="grip"><span></span></div>
   <aside id="left">
@@ -164,6 +220,11 @@
     <div class="sect">
       <h3>Active Traits</h3>
       <div class="traits" id="traits"><span class="empty">Completely normal. Nothing added yet.</span></div>
+    </div>
+    <div class="sect">
+      <h3>Asset Checklist</h3>
+      <div class="checklist" id="checklist"></div>
+      <div class="note">Drop real rigged <b>.glb</b> files into <b>assets/avatars/</b> with these exact names to replace the placeholder meshes.</div>
     </div>
     <div class="sect">
       <div class="actions">
@@ -196,6 +257,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /* =====================================================================
    ASSET PATHS  — drop real files in here later; the app finds them.
@@ -251,10 +313,26 @@ const ARCHETYPES={
    2. BASE CHARACTERS (primitive fallback proportions)
    ===================================================================== */
 const BASES={
-  youngFemale:{id:'youngFemale',label:'Young<br>Female',icon:'👩',skin:0xf0c6a4,shoulder:.50,hip:.52,torsoLen:.92,torsoRad:.44,limb:.13,headW:.93,headH:1.05,chest:true,belly:false,glasses:false,hair:'long',hairColor:0x3a2a1c,cloth:0x9aa0ad,clothKind:'tee'},
-  youngMale:{id:'youngMale',label:'Young<br>Male',icon:'👨',skin:0xe2ab82,shoulder:.63,hip:.43,torsoLen:1.0,torsoRad:.52,limb:.16,headW:1.0,headH:.98,chest:false,belly:false,glasses:false,hair:'short',hairColor:0x241c14,cloth:0x3a4150,clothKind:'hoodie'},
-  olderFemale:{id:'olderFemale',label:'Older<br>Female',icon:'👩‍🦳',skin:0xe9c2a6,shoulder:.52,hip:.55,torsoLen:.93,torsoRad:.49,limb:.14,headW:.96,headH:1.0,chest:true,belly:false,glasses:true,hair:'bob',hairColor:0xb9b9bd,cloth:0x7a5d86,clothKind:'tee'},
-  olderMale:{id:'olderMale',label:'Older<br>Male',icon:'👨‍🦳',skin:0xd8a585,shoulder:.61,hip:.5,torsoLen:1.0,torsoRad:.58,limb:.17,headW:1.02,headH:.97,chest:false,belly:true,glasses:true,hair:'bald',hairColor:0x9a9a9e,cloth:0x42506a,clothKind:'tee'},
+  youngFemale:{id:'youngFemale',label:'Young<br>Female',icon:'👩',
+    skin:0xe8b48f, hair:'long', hairColor:0x4a3526,
+    top:0x6d7b8c, pants:0x394a63, shoe:0x23262e, clothKind:'tee',
+    head:.25, headW:.94, headH:1.12, shoulder:.42, hip:.40, torsoLen:.95, legLen:1.55,
+    armUpper:.60, armFore:.56, neck:.15, limbArm:.085, limbLeg:.12, chest:true, belly:false, glasses:false},
+  youngMale:{id:'youngMale',label:'Young<br>Male',icon:'👨',
+    skin:0xc8966b, hair:'short', hairColor:0x2a2018,
+    top:0x4a5560, pants:0x5a5347, shoe:0x2a2622, clothKind:'tee',
+    head:.265, headW:1.0, headH:1.04, shoulder:.55, hip:.42, torsoLen:1.05, legLen:1.62,
+    armUpper:.66, armFore:.60, neck:.17, limbArm:.105, limbLeg:.14, chest:false, belly:false, glasses:false},
+  olderFemale:{id:'olderFemale',label:'Older<br>Female',icon:'👩‍🦳',
+    skin:0xe6bd9c, hair:'bob', hairColor:0xc7c7cd,
+    top:0x8a6d96, pants:0x4a4754, shoe:0x33303a, clothKind:'blouse',
+    head:.255, headW:.96, headH:1.08, shoulder:.44, hip:.47, torsoLen:.96, legLen:1.50,
+    armUpper:.60, armFore:.56, neck:.15, limbArm:.092, limbLeg:.125, chest:true, belly:false, glasses:true},
+  olderMale:{id:'olderMale',label:'Older<br>Male',icon:'👨‍🦳',
+    skin:0xcfa07c, hair:'thinning', hairColor:0x9a9a9e,
+    top:0x5b6b86, pants:0x40434c, shoe:0x2b2824, clothKind:'button',
+    head:.27, headW:1.0, headH:1.03, shoulder:.55, hip:.50, torsoLen:1.04, legLen:1.52,
+    armUpper:.64, armFore:.58, neck:.17, limbArm:.11, limbLeg:.145, chest:false, belly:true, glasses:true},
 };
 
 /* =====================================================================
@@ -278,16 +356,38 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
 const scene=new THREE.Scene();
 const at=(o,x,y,z)=>{o.position.set(x,y,z);return o;}; // set position (never reassign .position — it's read-only)
-const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.1,100);camera.position.set(0,1.7,6.6);
-const controls=new OrbitControls(camera,canvas);controls.target.set(0,1.45,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.enablePan=false;controls.minDistance=3.6;controls.maxDistance=10;controls.minPolarAngle=.5;controls.maxPolarAngle=Math.PI*.62;
-scene.add(new THREE.HemisphereLight(0xcdddff,0x12141c,1.0));
-const key=new THREE.DirectionalLight(0xffffff,1.7);key.position.set(3.5,6.5,4.2);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.camera.near=1;key.shadow.camera.far=22;key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=7;key.shadow.camera.bottom=-2;scene.add(key);
-scene.add(at(new THREE.DirectionalLight(0x7fb0ff,.55),-5,3,-3.5));
-scene.add(at(new THREE.DirectionalLight(0xff7fb0,.4),0,4,-6));
-const ground=new THREE.Mesh(new THREE.CircleGeometry(5,56),new THREE.MeshStandardMaterial({color:0x0d1018,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-const ring=new THREE.Mesh(new THREE.RingGeometry(1.0,1.06,64),new THREE.MeshBasicMaterial({color:0x2a3344,transparent:true,opacity:.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.01;scene.add(ring);
+const camera=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,0.1,100);camera.position.set(0,1.78,9.6);
+const controls=new OrbitControls(camera,canvas);controls.target.set(0,1.5,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.enablePan=false;controls.minDistance=5;controls.maxDistance=13;controls.minPolarAngle=.6;controls.maxPolarAngle=Math.PI*.58;
+
+// Image-based lighting for soft, realistic material shading (guarded for headless test)
+try{ const pmrem=new THREE.PMREMGenerator(renderer); scene.environment=pmrem.fromScene(new RoomEnvironment()).texture; }catch(e){}
+
+// studio three-point lighting
+scene.add(new THREE.HemisphereLight(0xdfe8ff,0x0c0e14,0.45));
+const key=new THREE.DirectionalLight(0xfff4e6,2.1);key.position.set(3.2,6.8,5.0);key.castShadow=true;
+key.shadow.mapSize.set(1024,1024);key.shadow.camera.near=1;key.shadow.camera.far=24;
+key.shadow.camera.left=-4;key.shadow.camera.right=4;key.shadow.camera.top=8;key.shadow.camera.bottom=-2;
+key.shadow.bias=-0.0004;key.shadow.radius=4;scene.add(key);
+scene.add(at(new THREE.DirectionalLight(0x9cc0ff,0.7),-5,4,2));   // cool fill
+scene.add(at(new THREE.DirectionalLight(0xffd9ec,0.85),-1,5,-6)); // pink rim
+scene.add(at(new THREE.SpotLight(0xffffff,18,0,Math.PI*0.18,0.5,1.4),0,9,3.5)); // soft top pool
+
+// studio floor (seamless sweep) + soft backdrop
+const floorTex=cTexGrad(['#23262e','#14161c','#0a0b10']);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(14,64),new THREE.MeshStandardMaterial({map:floorTex,roughness:.78,metalness:0}));
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+const backdrop=new THREE.Mesh(new THREE.CylinderGeometry(13,13,16,48,1,true,Math.PI*0.25,Math.PI*0.5),
+  new THREE.MeshStandardMaterial({color:0x171a22,roughness:1,side:THREE.BackSide}));
+backdrop.position.set(0,7,-2);scene.add(backdrop);
+// soft contact shadow under the character (in addition to real shadow)
+const contact=new THREE.Mesh(new THREE.CircleGeometry(1.1,48),new THREE.MeshBasicMaterial({map:cTexRadial(),transparent:true,opacity:.55,depthWrite:false}));
+contact.rotation.x=-Math.PI/2;contact.position.y=.012;scene.add(contact);
+// turntable ring accent
+const ring=new THREE.Mesh(new THREE.RingGeometry(1.05,1.12,72),new THREE.MeshBasicMaterial({color:0x3a4356,transparent:true,opacity:.35,side:THREE.DoubleSide}));
+ring.rotation.x=-Math.PI/2;ring.position.y=.014;scene.add(ring);
 
 const loader=new GLTFLoader();
 
@@ -295,6 +395,8 @@ const loader=new GLTFLoader();
    5. TEXTURES  (swap for assets/decals/*.png later)
    ===================================================================== */
 function cTex(draw,w=256,h=256){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');draw(x,w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
+function cTexGrad(cols){return cTex((x,w,h)=>{const g=x.createRadialGradient(w/2,h*0.32,40,w/2,h*0.5,w*0.62);cols.forEach((c,i)=>g.addColorStop(i/(cols.length-1),c));x.fillStyle=g;x.fillRect(0,0,w,h);},512,512);}
+function cTexRadial(){return cTex((x,w,h)=>{const g=x.createRadialGradient(w/2,h/2,4,w/2,h/2,w/2);g.addColorStop(0,'rgba(0,0,0,.85)');g.addColorStop(.6,'rgba(0,0,0,.35)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,w,h);},256,256);}
 const rainbowTex=cTex((x,w,h)=>{const cols=['#e40303','#ff8c00','#ffed00','#1f9e2c','#0a52ff','#7b1fa2'];const bw=h/cols.length;cols.forEach((c,i)=>{x.fillStyle=c;x.fillRect(0,i*bw,w,bw+1);});},64,256);
 function symTex(t){return cTex((x,w,h)=>{x.clearRect(0,0,w,h);x.save();x.translate(w/2,h/2);x.fillStyle='#15171e';
   if(t==='lightning'){x.beginPath();x.moveTo(22,-92);x.lineTo(-30,-4);x.lineTo(10,-4);x.lineTo(-22,92);x.lineTo(42,-10);x.lineTo(2,-10);x.closePath();x.fill();}
@@ -332,72 +434,116 @@ function newAnchor(parent,x,y,z){const a=new THREE.Object3D();a.position.set(x,y
 
 /* ---------- PRIMITIVE CHARACTER (fallback) ---------- */
 function buildPrimitive(){
-  const B=base, skin=()=>mat(B.skin,{roughness:SKINr});
-  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(B.torsoRad,B.torsoLen,10,22),mat(B.cloth));torso.position.y=1.5;torso.scale.x=B.shoulder/.5*.92;avatarRoot.add(torso);prim.torso=torso;
-  if(B.chest){const ch=new THREE.Mesh(new THREE.SphereGeometry(B.torsoRad*.62,16,12),mat(B.cloth));ch.scale.set(1.25,.7,.8);ch.position.set(0,1.62,B.torsoRad*.55);avatarRoot.add(ch);prim.chestM=ch;}
-  if(B.belly){const bl=new THREE.Mesh(new THREE.SphereGeometry(B.torsoRad*.78,16,12),mat(B.cloth));bl.scale.set(1.05,.85,.9);bl.position.set(0,1.2,B.torsoRad*.32);avatarRoot.add(bl);prim.bellyM=bl;}
-  const sh=(s)=>{const j=new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.25,16,12),mat(B.cloth));j.position.set(s*B.shoulder,2.02,0);avatarRoot.add(j);};sh(1);sh(-1);
-  const pelvis=new THREE.Mesh(new THREE.CapsuleGeometry(B.hip*.9,.2,8,18),mat(0x2a3140));pelvis.position.y=.96;pelvis.scale.x=B.hip/.5;avatarRoot.add(pelvis);
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.15,.18,.22,14),skin());neck.position.y=2.12;avatarRoot.add(neck);
-  const head=new THREE.Group();head.position.y=2.46;avatarRoot.add(head);prim.head=head;
-  const skull=new THREE.Mesh(new THREE.SphereGeometry(.5,30,26),skin());skull.scale.set(B.headW,B.headH,.96);head.add(skull);
-  const jaw=new THREE.Mesh(new THREE.SphereGeometry(.34,20,16),skin());jaw.scale.set(B.headW*(B.chest?.92:1.02),.7,.85);jaw.position.y=-.24;head.add(jaw);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(.06,.16,10),skin());nose.position.set(0,-.02,.49);nose.rotation.x=Math.PI/2;head.add(nose);
-  const ew=mat(0xffffff,{roughness:.35}),pu=mat(0x1b1c24,{roughness:.35});
-  const eye=sx=>{const g=new THREE.Group();g.position.set(sx,.08,.43);const w=new THREE.Mesh(new THREE.SphereGeometry(.1,16,12),ew);w.scale.z=.55;g.add(w);const p=new THREE.Mesh(new THREE.SphereGeometry(.045,12,10),pu);p.position.z=.07;g.add(p);head.add(g);};eye(-.18);eye(.18);
-  const bm=mat(B.hair==='bald'?0x8a8a8e:B.hairColor);
-  const brow=sx=>{const b=new THREE.Mesh(new THREE.BoxGeometry(.17,.045,.06),bm);b.position.set(sx,.25,.46);head.add(b);return b;};prim.browL=brow(-.18);prim.browR=brow(.18);
-  const mm=mat(0x7e2433,{roughness:.6});
-  const mLine=new THREE.Mesh(new THREE.BoxGeometry(.2,.04,.05),mm);mLine.position.set(0,-.18,.45);
-  const mFrown=new THREE.Mesh(new THREE.TorusGeometry(.12,.026,8,16,Math.PI),mm);mFrown.position.set(0,-.12,.45);
-  const mOpen=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),mat(0x49141f));mOpen.scale.set(1,1.3,.5);mOpen.position.set(0,-.2,.43);
-  const mSmirk=new THREE.Mesh(new THREE.BoxGeometry(.18,.045,.05),mm);mSmirk.position.set(.02,-.18,.45);mSmirk.rotation.z=-.28;
-  [mLine,mFrown,mOpen,mSmirk].forEach(m=>head.add(m));prim.mouths={neutral:mLine,annoyed:mFrown,angry:mFrown,shouting:mOpen,smug:mSmirk};
-  if(B.glasses){const gm=mat(0x20242e,{metalness:.4,roughness:.4});const gl=new THREE.Group();[-.18,.18].forEach(sx=>{const l=new THREE.Mesh(new THREE.TorusGeometry(.12,.018,10,22),gm);l.position.set(sx,.08,.46);gl.add(l);});const br=new THREE.Mesh(new THREE.BoxGeometry(.1,.018,.02),gm);br.position.set(0,.08,.47);gl.add(br);head.add(gl);}
-  // hair
-  const hl=mat(B.hairColor,{roughness:.95}),hr=mat(B.hairColor,{roughness:.95});prim.hairMatL=hl;prim.hairMatR=hr;const hair=new THREE.Group();head.add(hair);
-  const dome=()=>{const l=new THREE.Mesh(new THREE.SphereGeometry(.53,20,16,0,Math.PI,0,Math.PI*.62),hl);const r=new THREE.Mesh(new THREE.SphereGeometry(.53,20,16,Math.PI,Math.PI,0,Math.PI*.62),hr);l.scale.set(B.headW,B.headH,.98);r.scale.set(B.headW,B.headH,.98);hair.add(l,r);};
-  if(B.hair==='long'){dome();const back=new THREE.Mesh(new THREE.CapsuleGeometry(.36,.7,8,16),hl);back.position.set(0,-.35,-.16);back.scale.z=.6;hair.add(back);}
-  else if(B.hair==='short'){const l=new THREE.Mesh(new THREE.SphereGeometry(.52,20,16,0,Math.PI,0,Math.PI*.5),hl);const r=new THREE.Mesh(new THREE.SphereGeometry(.52,20,16,Math.PI,Math.PI,0,Math.PI*.5),hr);l.position.y=.04;r.position.y=.04;l.scale.set(B.headW,B.headH*.9,.98);r.scale.set(B.headW,B.headH*.9,.98);hair.add(l,r);}
-  else if(B.hair==='bob'){dome();const flare=new THREE.Mesh(new THREE.CylinderGeometry(.46,.56,.42,18,1,true),new THREE.MeshStandardMaterial({color:B.hairColor,roughness:.95,side:THREE.DoubleSide}));flare.position.set(0,-.2,-.02);hair.add(flare);prim.hairFlare=flare;}
-  else{const hs=new THREE.Mesh(new THREE.TorusGeometry(.46,.08,10,28,Math.PI*1.3),hl);hs.rotation.x=Math.PI/2;hs.rotation.z=Math.PI*.85;hs.position.y=-.05;hair.add(hs);}
-  // arms (shoulder pivot)
-  const arm=s=>{const g=new THREE.Group();g.position.set(s*B.shoulder,2.0,0);
-    const up=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb,.55,8,14),skin());up.position.y=-.34;g.add(up);
-    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.02,14,10),skin()),0,-.62,0));
-    const fore=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*.92,.5,8,14),skin());fore.position.set(0,-.95,.07);fore.rotation.x=.18;g.add(fore);
-    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.1,12,10),skin()),0,-1.22,.12));
-    const sleeve=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.12,.5,8,14),mat(B.cloth));sleeve.position.y=-.34;sleeve.visible=false;g.add(sleeve);
-    avatarRoot.add(g);return{group:g,sleeve};};
-  prim.armL=arm(-1);prim.armR=arm(1);
-  // legs
-  const leg=s=>{const g=new THREE.Group();g.position.set(s*(B.hip*.5),.92,0);
-    const th=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.25,.42,8,14),mat(0x2a3140));th.position.y=-.32;g.add(th);
-    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.15,14,10),mat(0x2a3140)),0,-.58,0));
-    const ca=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.05,.42,8,14),mat(0x2a3140));ca.position.y=-.82;g.add(ca);
-    const shoe=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.46),mat(0x16181f));shoe.position.set(0,-1.16,.07);g.add(shoe);
-    const boot=new THREE.Mesh(new THREE.BoxGeometry(.36,.46,.52),mat(0x101218));boot.position.set(0,-1.0,.06);boot.visible=false;g.add(boot);
-    avatarRoot.add(g);return{group:g,shoe,boot};};
-  prim.legL=leg(-1);prim.legR=leg(1);
-  // primitive clothing extras (base outfit) — these are part of the body, not anchors
-  const hood=new THREE.Mesh(new THREE.SphereGeometry(.38,16,12,0,Math.PI*2,0,Math.PI*.6),mat(B.cloth));hood.position.set(0,2.1,-.16);hood.rotation.x=-.5;hood.visible=(B.clothKind==='hoodie');avatarRoot.add(hood);prim.hood=hood;
-  const dress=new THREE.Mesh(new THREE.CylinderGeometry(.42,.92,.95,18,1,true),mat(0x7a4bcf,{side:THREE.DoubleSide,roughness:.85}));dress.position.y=.72;dress.visible=false;avatarRoot.add(dress);prim.dress=dress;
-  const chestDecal=new THREE.Mesh(new THREE.PlaneGeometry(.5,.5),new THREE.MeshStandardMaterial({transparent:true,roughness:.9}));chestDecal.position.set(0,1.55,B.torsoRad+.025);chestDecal.visible=false;avatarRoot.add(chestDecal);prim.chestDecal=chestDecal;
+  const B=base;
+  const skin=()=>mat(B.skin,{roughness:.56,metalness:0});
+  const topMat=()=>mat(B.top,{roughness:.78});
+  const pantsMat=()=>mat(B.pants,{roughness:.84});
+  const G=(geo,m)=>new THREE.Mesh(geo,m);
+  prim.topMeshes=[];
+  const TOP=(geo)=>{const m=G(geo,topMat());prim.topMeshes.push(m);return m;};
 
-  // anchors — primitive
-  anchors.Head=newAnchor(head,0,.5,0);
+  // ---- proportions (built from the floor up) ----
+  const ankleY=.14, hipY=ankleY+B.legLen, shoulderY=hipY+B.torsoLen, neckTopY=shoulderY+B.neck;
+  const R=B.head, headCY=neckTopY+R*B.headH*.86;
+  const rT=B.shoulder*.62;
+
+  // ---- lower body (pants) ----
+  const pelvis=G(new THREE.CapsuleGeometry(B.hip*.72,.16,12,20),pantsMat());pelvis.position.set(0,hipY+.02,0);pelvis.scale.set(1.22,1,.74);avatarRoot.add(pelvis);
+  const leg=s=>{const g=new THREE.Group();g.position.set(s*B.hip*.5,hipY,0);
+    const thigh=B.legLen*.5, calf=B.legLen*.45;
+    const th=G(new THREE.CapsuleGeometry(B.limbLeg,thigh,12,16),pantsMat());th.position.y=-thigh/2-.04;g.add(th);
+    g.add(at(G(new THREE.SphereGeometry(B.limbLeg*.96,16,12),pantsMat()),0,-thigh-.08,0));
+    const ca=G(new THREE.CapsuleGeometry(B.limbLeg*.84,calf,12,16),pantsMat());ca.position.y=-thigh-calf/2-.14;g.add(ca);
+    const shoeGrp=new THREE.Group();
+    const heel=G(new THREE.BoxGeometry(B.limbLeg*2.0,.12,.34),mat(B.shoe,{roughness:.5}));heel.position.set(0,-B.legLen+.02,.04);
+    const toe=G(new THREE.SphereGeometry(B.limbLeg*1.1,14,12),mat(B.shoe,{roughness:.5}));toe.scale.set(1,.62,1.7);toe.position.set(0,-B.legLen+.02,.2);
+    shoeGrp.add(heel,toe);g.add(shoeGrp);
+    const boot=G(new THREE.BoxGeometry(B.limbLeg*2.5,.52,.52),mat(0x14161c,{roughness:.55}));boot.position.set(0,-B.legLen+.22,.05);boot.visible=false;g.add(boot);
+    avatarRoot.add(g);return{group:g,shoe:shoeGrp,boot};};
+  prim.legL=leg(-1);prim.legR=leg(1);
+
+  // ---- torso (the shirt) ----
+  const torso=TOP(new THREE.CapsuleGeometry(rT,B.torsoLen*.5,14,24));torso.position.y=(hipY+shoulderY)/2+.02;torso.scale.set(1.16,1,.66);avatarRoot.add(torso);prim.torso=torso;
+  const yoke=TOP(new THREE.SphereGeometry(rT,22,16));yoke.scale.set(B.shoulder/rT*1.08,.5,.62);yoke.position.set(0,shoulderY-.08,0);avatarRoot.add(yoke);
+  [-1,1].forEach(s=>{const j=TOP(new THREE.SphereGeometry(B.shoulder*.3,18,14));j.position.set(s*B.shoulder,shoulderY-.05,0);avatarRoot.add(j);});
+  if(B.chest){[-1,1].forEach(s=>{const b=TOP(new THREE.SphereGeometry(rT*.5,16,14));b.scale.set(.92,.82,.82);b.position.set(s*rT*.42,shoulderY-.34,rT*.52);avatarRoot.add(b);});}
+  if(B.belly){const bl=TOP(new THREE.SphereGeometry(rT*.95,20,16));bl.scale.set(1.06,.92,.96);bl.position.set(0,hipY+B.torsoLen*.34,rT*.46);avatarRoot.add(bl);}
+  if(B.clothKind==='blouse'||B.clothKind==='button'){const col=TOP(new THREE.TorusGeometry(rT*.5,.045,8,22,Math.PI));col.position.set(0,shoulderY+.01,rT*.42);col.rotation.x=Math.PI*.5;avatarRoot.add(col);}
+  const neck=G(new THREE.CylinderGeometry(R*.42,R*.5,B.neck+.12,16),skin());neck.position.y=neckTopY-.04;avatarRoot.add(neck);
+
+  // ---- head ----
+  const head=new THREE.Group();head.position.y=headCY;avatarRoot.add(head);prim.head=head;
+  const skull=G(new THREE.SphereGeometry(R,32,28),skin());skull.scale.set(B.headW,B.headH,.95);head.add(skull);
+  const jaw=G(new THREE.SphereGeometry(R*.78,24,18),skin());jaw.scale.set(B.headW*.86,.8,.84);jaw.position.set(0,-R*.5,R*.05);head.add(jaw);
+  [-1,1].forEach(s=>{const e=G(new THREE.SphereGeometry(R*.2,12,10),skin());e.scale.set(.5,.95,.7);e.position.set(s*R*.95,-R*.02,0);head.add(e);});
+  const nose=G(new THREE.SphereGeometry(R*.14,12,10),skin());nose.scale.set(.85,1.15,1.4);nose.position.set(0,-R*.05,R*.92);head.add(nose);
+  // eyes
+  const irisM=mat(0x2a2620,{roughness:.25}),whiteM=mat(0xf2f0ea,{roughness:.3});
+  const eye=sx=>{const g=new THREE.Group();g.position.set(sx,R*.12,R*.82);
+    const wh=G(new THREE.SphereGeometry(R*.19,16,12),whiteM);wh.scale.set(1,.6,.42);g.add(wh);
+    const ir=G(new THREE.SphereGeometry(R*.12,14,12),irisM);ir.position.z=R*.08;ir.scale.set(1,.95,.55);g.add(ir);
+    g.add(at(G(new THREE.SphereGeometry(R*.035,8,8),mat(0xffffff)),R*.035,R*.05,R*.15));
+    const lid=G(new THREE.SphereGeometry(R*.22,16,10,0,Math.PI*2,0,Math.PI*.5),skin());lid.scale.set(1,.55,.55);lid.position.y=R*.06;lid.rotation.x=-.28;g.add(lid);
+    head.add(g);return g;};
+  prim.eyeL=eye(-R*.4);prim.eyeR=eye(R*.4);
+  const bm=mat(B.hair==='thinning'?0x8f8f93:B.hairColor,{roughness:.7});
+  const brow=sx=>{const b=G(new THREE.BoxGeometry(R*.36,R*.09,R*.1),bm);b.position.set(sx,R*.32,R*.86);head.add(b);return b;};
+  prim.browL=brow(-R*.4);prim.browR=brow(R*.4);
+  const lipM=mat(0xb56a60,{roughness:.5});
+  const mLine=G(new THREE.BoxGeometry(R*.4,R*.06,R*.08),lipM);mLine.position.set(0,-R*.56,R*.82);
+  const mFrown=G(new THREE.TorusGeometry(R*.22,R*.04,8,16,Math.PI),lipM);mFrown.position.set(0,-R*.46,R*.82);
+  const mOpen=G(new THREE.SphereGeometry(R*.2,16,12),mat(0x5a1f24));mOpen.scale.set(1,1.2,.5);mOpen.position.set(0,-R*.6,R*.78);
+  const mSmirk=G(new THREE.BoxGeometry(R*.36,R*.07,R*.08),lipM);mSmirk.position.set(R*.04,-R*.56,R*.82);mSmirk.rotation.z=-.26;
+  [mLine,mFrown,mOpen,mSmirk].forEach(m=>head.add(m));prim.mouths={neutral:mLine,annoyed:mFrown,angry:mFrown,shouting:mOpen,smug:mSmirk};
+  if(B.glasses){const gm=mat(0x20242e,{metalness:.5,roughness:.35});const gl=new THREE.Group();[-R*.42,R*.42].forEach(sx=>{const l=G(new THREE.TorusGeometry(R*.26,R*.03,10,22),gm);l.position.set(sx,R*.12,R*.85);gl.add(l);});const br=G(new THREE.BoxGeometry(R*.2,R*.03,R*.03),gm);br.position.set(0,R*.12,R*.87);gl.add(br);head.add(gl);}
+
+  // ---- hair ----
+  const hl=mat(B.hairColor,{roughness:.5}),hr=mat(B.hairColor,{roughness:.5});prim.hairMatL=hl;prim.hairMatR=hr;const hair=new THREE.Group();head.add(hair);
+  const capL=(t1=Math.PI*.62)=>G(new THREE.SphereGeometry(R*1.05,24,18,0,Math.PI,0,t1),hl);
+  const capR=(t1=Math.PI*.62)=>G(new THREE.SphereGeometry(R*1.05,24,18,Math.PI,Math.PI,0,t1),hr);
+  const sc=(...ms)=>ms.forEach(m=>m.scale.set(B.headW,B.headH,1.0));
+  if(B.hair==='short'){const l=capL(Math.PI*.5),r=capR(Math.PI*.5);sc(l,r);l.position.y=R*.05;r.position.y=R*.05;hair.add(l,r);}
+  else if(B.hair==='long'){const l=capL(),r=capR();sc(l,r);hair.add(l,r);
+    const back=G(new THREE.CapsuleGeometry(R*.72,B.torsoLen*.45,12,16),hl);back.position.set(0,-R*1.25,-R*.5);back.scale.set(1.1,1,.5);hair.add(back);
+    [-1,1].forEach(s=>{const side=G(new THREE.CapsuleGeometry(R*.26,R*1.1,8,12),s<0?hl:hr);side.position.set(s*R*.82,-R*.45,R*.18);side.scale.z=.6;hair.add(side);});}
+  else if(B.hair==='bob'){const l=capL(),r=capR();sc(l,r);hair.add(l,r);
+    const bell=G(new THREE.SphereGeometry(R*1.12,24,18,0,Math.PI*2,Math.PI*.30,Math.PI*.52),new THREE.MeshStandardMaterial({color:B.hairColor,roughness:.5,side:THREE.DoubleSide}));bell.scale.set(B.headW*1.05,B.headH,1.04);bell.position.y=-R*.08;hair.add(bell);prim.hairFlare=bell;}
+  else{const hs=G(new THREE.TorusGeometry(R*.9,R*.15,12,28,Math.PI*1.25),hl);hs.rotation.x=Math.PI/2;hs.rotation.z=Math.PI*.875;hs.position.y=-R*.15;hair.add(hs);
+    const top=G(new THREE.SphereGeometry(R*1.0,20,14,0,Math.PI*2,0,Math.PI*.38),new THREE.MeshStandardMaterial({color:B.hairColor,roughness:.6,transparent:true,opacity:.55}));sc(top);hair.add(top);}
+
+  // ---- arms ----
+  const arm=s=>{const g=new THREE.Group();g.position.set(s*B.shoulder,shoulderY-.05,0);
+    const up=G(new THREE.CapsuleGeometry(B.limbArm,B.armUpper,12,14),skin());up.position.y=-B.armUpper/2-.04;g.add(up);
+    g.add(at(G(new THREE.SphereGeometry(B.limbArm*.98,14,12),skin()),0,-B.armUpper-.06,0));
+    const fore=G(new THREE.CapsuleGeometry(B.limbArm*.9,B.armFore,12,14),skin());fore.position.set(0,-B.armUpper-B.armFore/2-.12,.04);g.add(fore);
+    g.add(at(G(new THREE.SphereGeometry(B.limbArm*1.05,14,12),skin()),0,-B.armUpper-B.armFore-.18,.06));
+    const sUp=G(new THREE.CapsuleGeometry(B.limbArm*1.2,B.armUpper*.7,12,14),topMat());sUp.position.y=-B.armUpper*.42;sUp.visible=false;g.add(sUp);
+    const sFore=G(new THREE.CapsuleGeometry(B.limbArm*1.05,B.armFore,12,14),topMat());sFore.position.set(0,-B.armUpper-B.armFore/2-.12,.04);sFore.visible=false;g.add(sFore);
+    avatarRoot.add(g);return{group:g,sUp,sFore};};
+  prim.armL=arm(-1);prim.armR=arm(1);
+
+  // ---- extras (base outfit) ----
+  const hood=G(new THREE.SphereGeometry(R*.95,18,14,0,Math.PI*2,0,Math.PI*.55),topMat());hood.position.set(0,neckTopY+.02,-R*.4);hood.rotation.x=-.5;hood.visible=false;avatarRoot.add(hood);prim.hood=hood;
+  const dress=G(new THREE.CylinderGeometry(B.hip*.8,B.hip*1.5,B.legLen*.55,22,1,true),mat(0x7a4bcf,{side:THREE.DoubleSide,roughness:.8}));dress.position.y=hipY-B.legLen*.18;dress.visible=false;avatarRoot.add(dress);prim.dress=dress;
+  const chestDecal=G(new THREE.PlaneGeometry(rT*.9,rT*.9),new THREE.MeshStandardMaterial({transparent:true,roughness:.9}));chestDecal.position.set(0,shoulderY-.34,rT*.72);chestDecal.visible=false;avatarRoot.add(chestDecal);prim.chestDecal=chestDecal;
+
+  // ---- anchors ----
+  anchors.Head=newAnchor(head,0,R*B.headH,0);
   anchors.Face=newAnchor(head,0,0,0);
-  anchors.Chest=newAnchor(avatarRoot,0,1.55,B.torsoRad);
-  anchors.Back=newAnchor(avatarRoot,0,1.55,-B.torsoRad);
-  anchors.RightHand=newAnchor(prim.armR.group,0,-1.26,.12);
-  anchors.LeftHand=newAnchor(prim.armL.group,0,-1.26,.12);
+  const chestY=shoulderY-.34, frontZ=rT*.72;
+  anchors.Chest=newAnchor(avatarRoot,0,chestY,frontZ);
+  anchors.Back=newAnchor(avatarRoot,0,chestY,-frontZ);
+  const handY=-B.armUpper-B.armFore-.18;
+  anchors.RightHand=newAnchor(prim.armR.group,0,handY,.06);
+  anchors.LeftHand=newAnchor(prim.armL.group,0,handY,.06);
+  prim.rT=rT;prim.R=R;prim.frontZ=frontZ;
 
   avatarRoot.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   mode='primitive';
 }
 
 /* ---------- GLB CHARACTER ---------- */
-function fitModel(obj,targetH=2.5){
+function fitModel(obj,targetH=3.4){
   const box=new THREE.Box3().setFromObject(obj);const size=new THREE.Vector3();box.getSize(size);
   const s=targetH/(size.y||1);obj.scale.setScalar(s);
   const box2=new THREE.Box3().setFromObject(obj);const c=new THREE.Vector3();box2.getCenter(c);
@@ -426,28 +572,28 @@ function setupGLB(gltf){
 /* ---------- ACCESSORIES (anchor-based, placeholder geometry) ----------
    Replace any of these with a loaded GLB later via attachGLB(anchorName,file). */
 function buildAccessories(){
-  const B=base;
+  const B=base, R=prim.R||B.head||.26, rT=prim.rT||.34;
   // CHEST: vest, buttons, cause patches, rainbow shirt, pride pin
-  const vest=new THREE.Mesh(new THREE.CylinderGeometry(.5,.46,.85,20,1,true),mat(0x42502f,{side:THREE.DoubleSide,roughness:.85}));vest.position.set(0,-.05,-.42);vest.visible=false;anchors.Chest.add(vest);acc.vest=vest;
+  const vest=new THREE.Mesh(new THREE.CylinderGeometry(rT*1.12,rT*1.0,B.torsoLen*.78,22,1,true),mat(0x42502f,{side:THREE.DoubleSide,roughness:.85}));vest.position.set(0,-.06,-prim.frontZ);vest.scale.set(1.16,1,.7);vest.visible=false;anchors.Chest.add(vest);acc.vest=vest;
   acc.buttons=[];const bc=[0xff2e72,0xffd23f,0x2f6bff,0x28c76f,0xa259ff];
-  for(let i=0;i<9;i++){const b=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.025,16),mat(bc[i%bc.length],{roughness:.5}));b.position.set(-.3+(i%3)*.3,.28-Math.floor(i/3)*.28,.02);b.rotation.x=Math.PI/2;b.visible=false;anchors.Chest.add(b);acc.buttons.push(b);}
-  acc.causes={};['eco','anticap','unity','solidarity'].forEach((k,i)=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(.22,.22),new THREE.MeshStandardMaterial({map:patchTex(k),transparent:true}));p.position.set(-.3+(i%2)*.6,-.16-Math.floor(i/2)*.26,.03);p.visible=false;anchors.Chest.add(p);acc.causes[k]=p;});
-  const rainbow=new THREE.Mesh(new THREE.PlaneGeometry(.5,.6),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.85}));rainbow.position.set(0,0,.015);rainbow.visible=false;anchors.Chest.add(rainbow);acc.rainbow=rainbow;
-  const pridePin=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.025,16),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.5}));pridePin.position.set(.28,.36,.02);pridePin.rotation.x=Math.PI/2;pridePin.visible=false;anchors.Chest.add(pridePin);acc.pridePin=pridePin;
+  for(let i=0;i<9;i++){const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.02,16),mat(bc[i%bc.length],{roughness:.5}));b.position.set(-.22+(i%3)*.22,.2-Math.floor(i/3)*.2,.02);b.rotation.x=Math.PI/2;b.visible=false;anchors.Chest.add(b);acc.buttons.push(b);}
+  acc.causes={};['eco','anticap','unity','solidarity'].forEach((k,i)=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(.17,.17),new THREE.MeshStandardMaterial({map:patchTex(k),transparent:true}));p.position.set(-.22+(i%2)*.44,-.12-Math.floor(i/2)*.2,.025);p.visible=false;anchors.Chest.add(p);acc.causes[k]=p;});
+  const rainbow=new THREE.Mesh(new THREE.PlaneGeometry(rT*1.1,rT*1.3),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.85}));rainbow.position.set(0,0,.012);rainbow.visible=false;anchors.Chest.add(rainbow);acc.rainbow=rainbow;
+  const pridePin=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.02,16),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.5}));pridePin.position.set(.2,.26,.02);pridePin.rotation.x=Math.PI/2;pridePin.visible=false;anchors.Chest.add(pridePin);acc.pridePin=pridePin;
   // BACK: backpack
-  const backpack=new THREE.Mesh(new THREE.BoxGeometry(.62,.78,.28),mat(0x2f3b2a));backpack.position.set(0,0,-.18);backpack.visible=false;anchors.Back.add(backpack);acc.backpack=backpack;
+  const backpack=new THREE.Mesh(new THREE.BoxGeometry(rT*1.5,B.torsoLen*.7,.26),mat(0x2f3b2a,{roughness:.8}));backpack.position.set(0,0,-.16);backpack.visible=false;anchors.Back.add(backpack);acc.backpack=backpack;
   // RIGHT HAND: sign, megaphone, phone
-  const sign=new THREE.Group();sign.add(new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1.05,8),mat(0x6b4a2f)));const board=new THREE.Mesh(new THREE.PlaneGeometry(.8,.8),new THREE.MeshStandardMaterial({map:signTex(),side:THREE.DoubleSide,roughness:.9}));board.position.y=.68;sign.add(board);sign.position.set(.1,-.1,.05);sign.visible=false;anchors.RightHand.add(sign);acc.sign=sign;
-  const mega=new THREE.Group();const horn=new THREE.Mesh(new THREE.CylinderGeometry(.24,.09,.38,18,1,true),mat(0xd23a3a,{side:THREE.DoubleSide}));horn.position.y=.18;mega.add(horn);const mb=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.16,12),mat(0x21262f));mb.position.y=-.05;mega.add(mb);mega.position.set(.08,-.05,.1);mega.rotation.z=-.5;mega.visible=false;anchors.RightHand.add(mega);acc.mega=mega;
-  const phone=new THREE.Group();phone.add(new THREE.Mesh(new THREE.BoxGeometry(.16,.32,.03),mat(0x111318)));const scr=new THREE.Mesh(new THREE.PlaneGeometry(.13,.27),mat(0x2f6bff,{emissive:0x18306e,emissiveIntensity:.7}));scr.position.z=.02;phone.add(scr);phone.position.set(.04,0,.07);phone.visible=false;anchors.RightHand.add(phone);acc.phone=phone;
+  const sign=new THREE.Group();sign.add(new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.0,8),mat(0x6b4a2f)));const board=new THREE.Mesh(new THREE.PlaneGeometry(.7,.7),new THREE.MeshStandardMaterial({map:signTex(),side:THREE.DoubleSide,roughness:.9}));board.position.y=.62;sign.add(board);sign.position.set(.08,-.05,.04);sign.visible=false;anchors.RightHand.add(sign);acc.sign=sign;
+  const mega=new THREE.Group();const horn=new THREE.Mesh(new THREE.CylinderGeometry(.2,.08,.32,18,1,true),mat(0xd23a3a,{side:THREE.DoubleSide}));horn.position.y=.15;mega.add(horn);const mb=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.14,12),mat(0x21262f));mb.position.y=-.04;mega.add(mb);mega.position.set(.06,-.04,.08);mega.rotation.z=-.5;mega.visible=false;anchors.RightHand.add(mega);acc.mega=mega;
+  const phone=new THREE.Group();phone.add(new THREE.Mesh(new THREE.BoxGeometry(.13,.26,.025),mat(0x111318)));const scr=new THREE.Mesh(new THREE.PlaneGeometry(.1,.21),mat(0x2f6bff,{emissive:0x18306e,emissiveIntensity:.7}));scr.position.z=.016;phone.add(scr);phone.position.set(.03,0,.06);phone.visible=false;anchors.RightHand.add(phone);acc.phone=phone;
   // LEFT HAND: forearm tattoos
-  acc.tattoos={};['lightning','flower','slogan'].forEach((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(.18,.18),new THREE.MeshStandardMaterial({map:symTex(t),transparent:true}));m.position.set(0,.3,.06);m.visible=false;anchors.LeftHand.add(m);acc.tattoos[t]=m;});
-  // FACE: piercings
+  acc.tattoos={};['lightning','flower','slogan'].forEach((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(.14,.14),new THREE.MeshStandardMaterial({map:symTex(t),transparent:true}));m.position.set(0,.28,B.limbArm+.02);m.visible=false;anchors.LeftHand.add(m);acc.tattoos[t]=m;});
+  // FACE: piercings (scaled to head radius)
   const metal=mat(0xdadae2,{metalness:.8,roughness:.3});
-  const noseR=new THREE.Mesh(new THREE.TorusGeometry(.045,.012,8,16),metal);noseR.position.set(.06,-.08,.48);noseR.rotation.x=Math.PI/2;
-  const browR=new THREE.Mesh(new THREE.TorusGeometry(.04,.011,8,16),metal);browR.position.set(-.26,.23,.41);
-  const earL=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),metal);earL.position.set(-.49,-.04,.05);
-  const earR=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),metal);earR.position.set(.49,-.04,.05);
+  const noseR=new THREE.Mesh(new THREE.TorusGeometry(R*.18,R*.05,8,16),metal);noseR.position.set(R*.16,-R*.32,R*.92);noseR.rotation.x=Math.PI/2;
+  const browR=new THREE.Mesh(new THREE.TorusGeometry(R*.16,R*.045,8,16),metal);browR.position.set(-R*.5,R*.42,R*.78);
+  const earL=new THREE.Mesh(new THREE.SphereGeometry(R*.12,10,8),metal);earL.position.set(-R*.96,-R*.18,0);
+  const earR=new THREE.Mesh(new THREE.SphereGeometry(R*.12,10,8),metal);earR.position.set(R*.96,-R*.18,0);
   [noseR,browR,earL,earR].forEach(p=>{p.visible=false;anchors.Face.add(p);});
   acc.piercings={nose:noseR,eyebrow:browR,ears:[earL,earR]};
 
@@ -502,10 +648,14 @@ function apply(){
     else if(state.hair==='rainbow')setHair(0xffffff,0xffffff,rainbowTex);
     else{const c=HAIR[state.hair];setHair(c,c);}
     if(prim.hairFlare)prim.hairFlare.material.color.setHex(state.hair==='natural'?base.hairColor:(typeof HAIR[state.hair]==='number'?HAIR[state.hair]:base.hairColor));
-    const ck=effectiveClothing(),cc=CLOTH[ck];
-    prim.torso.material.color.setHex(cc);if(prim.chestM)prim.chestM.material.color.setHex(cc);if(prim.bellyM)prim.bellyM.material.color.setHex(cc);
+    // top colour: normal default keeps the character's own top colour; a chosen option uses that option's colour
+    const ck=effectiveClothing();
+    const cc = state.vest ? CLOTH.vest : (state.clothing ? CLOTH[state.clothing] : base.top);
+    (prim.topMeshes||[]).forEach(m=>m.material.color.setHex(cc));
     prim.hood.visible=(ck==='hoodie');prim.hood.material.color.setHex(cc);
-    const sleeves=(ck==='hoodie'||ck==='jacket')||ck==='vest';[prim.armL,prim.armR].forEach(a=>{a.sleeve.visible=sleeves;a.sleeve.material.color.setHex(cc);});
+    // sleeves: short for tee, long for everything else; vest is sleeveless
+    const longSleeve=(ck==='hoodie'||ck==='jacket'||ck==='blouse'||ck==='button'||ck==='shirt');
+    [prim.armL,prim.armR].forEach(a=>{a.sUp.visible=(ck!=='vest');a.sFore.visible=longSleeve;a.sUp.material.color.setHex(cc);a.sFore.material.color.setHex(cc);});
     if(ck==='shirt'){prim.chestDecal.material.map=symTex('slogan');prim.chestDecal.material.needsUpdate=true;prim.chestDecal.visible=!state.rainbowShirt;}else prim.chestDecal.visible=false;
     prim.dress.visible=state.dress;
     prim.legL.boot.visible=state.boots;prim.legR.boot.visible=state.boots;prim.legL.shoe.visible=!state.boots;prim.legR.shoe.visible=!state.boots;
@@ -652,17 +802,66 @@ let toastT=null;function toast(msg){let el=$('toast');if(!el){el=document.create
 $('grip').onclick=()=>$('dock').classList.toggle('collapsed');
 
 /* =====================================================================
-   14. GO
+   14. NORMAL MODE start screen + gating + asset checklist
+   ===================================================================== */
+let phase='select';   // 'select' until a character is chosen, then 'edit'
+let chosen=null;
+
+// build the start-screen cards (all four shown as completely normal people)
+const startCards=$('startCards');
+Object.values(BASES).forEach(b=>{
+  const c=document.createElement('button');c.className='scard';c.dataset.id=b.id;
+  c.innerHTML=`<span class="ring">${b.icon}</span><span class="nm">${b.label}</span><span class="badge">Normal</span>`;
+  c.onclick=()=>{
+    chosen=b.id;
+    document.querySelectorAll('.scard').forEach(x=>x.classList.toggle('on',x.dataset.id===b.id));
+    baseId=b.id; base=BASES[b.id];
+    Object.assign(state,NEUTRAL()); intensity=0; level=0;
+    loadCharacter(b.id); setIntensity(0);              // preview the normal character in the studio
+    document.querySelectorAll('.charbtn').forEach((x,i)=>x.classList.toggle('on',Object.keys(BASES)[i]===b.id));
+    const cta=$('startCta'); cta.disabled=false; cta.textContent='Customize '+b.label.replace('<br>',' ')+' →';
+  };
+  startCards.appendChild(c);
+});
+$('startCta').onclick=()=>{ if(!chosen)return; enterEdit(); };
+
+function enterEdit(){
+  phase='edit';
+  $('start').classList.add('hide');
+  const dock=$('dock'); dock.classList.remove('gated');
+  if(innerWidth<981) dock.classList.add('collapsed');   // keep character visible on phones
+}
+
+/* ---- Asset checklist: probe whether real GLBs exist; show found/missing ---- */
+function buildChecklist(){
+  const el=$('checklist'); if(!el) return; el.innerHTML='';
+  const rows=[
+    ['Young female', ASSETS.avatars+AVATAR_GLB.youngFemale],
+    ['Young male',   ASSETS.avatars+AVATAR_GLB.youngMale],
+    ['Older female', ASSETS.avatars+AVATAR_GLB.olderFemale],
+    ['Older male',   ASSETS.avatars+AVATAR_GLB.olderMale],
+    ['Animations',   ASSETS.animations+ANIM_GLB.idle],
+  ];
+  rows.forEach(([name,path])=>{
+    const row=document.createElement('div');row.className='crow';row.dataset.path=path;
+    row.innerHTML=`<span class="stat">✕</span><span class="meta"><b>${name}</b><code>${path}</code></span><span class="tag">Missing</span>`;
+    el.appendChild(row);
+    probe(path).then(ok=>{ if(ok){ row.classList.add('ok'); row.querySelector('.stat').textContent='✓'; row.querySelector('.tag').textContent='Found'; } });
+  });
+}
+function probe(url){
+  try{ return fetch(url,{method:'HEAD'}).then(r=>r.ok).catch(()=>false); }
+  catch(e){ return Promise.resolve(false); }
+}
+
+/* =====================================================================
+   15. GO
    ===================================================================== */
 document.documentElement.style.setProperty('--accent',ARCHETYPES[arch].accent);
-buildTabs();buildLadder();
-loadCharacter(baseId);   // builds primitive, then upgrades to GLB if a file is present
+$('dock').classList.add('gated');     // editor hidden until a character is chosen
+buildTabs();buildLadder();buildChecklist();
+loadCharacter(baseId);                 // preview the default character behind the start screen
 setIntensity(0);
-
-// On phones the panel is a tall bottom sheet — start it collapsed so the
-// character is visible. Tap the grip handle to open it.
-if(innerWidth<981){ document.getElementById('dock').classList.add('collapsed'); }
-
 // Tell the boot watchdog we made it.
 window.__bootOK=true;
 </script>
