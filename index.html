@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Caricature Lab — Satirical Avatar Creator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070809; --panel:#101319; --panel-2:#161b24; --card:#1a2030; --card-2:#212a3c;
+    --border:#2a3344; --border-2:#374257; --text:#eef2f8; --muted:#8b95a8; --muted-2:#5e6678;
+    --accent:#ff2e72; --accent-2:#ffd23f; --good:#2dd4a7;
+    --r:16px; --tap:44px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+  #bg{position:fixed;inset:0;z-index:0;background:radial-gradient(130% 100% at 50% 0%, #1a2233 0%, #0b0e14 52%, #050608 100%);}
+  #scene{position:fixed;inset:0;z-index:1;display:block;touch-action:none;}
+  .rotate-hint{position:fixed;z-index:3;left:50%;bottom:calc(74vh + 6px);transform:translateX(-50%);
+    color:var(--muted);font:700 10px Inter;letter-spacing:2px;text-transform:uppercase;display:flex;gap:8px;align-items:center;pointer-events:none;opacity:.7;}
+  .rotate-hint svg{width:16px;height:16px;stroke:var(--muted);fill:none;}
+
+  #topbar{position:fixed;z-index:7;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;
+    padding:max(9px,env(safe-area-inset-top)) 12px 9px;background:linear-gradient(#070809f0,#07080900);pointer-events:none;}
+  #topbar>*{pointer-events:auto;}
+  .brand{display:flex;flex-direction:column;line-height:.82;margin-right:auto;}
+  .brand .l1{font-family:Anton,Impact,sans-serif;font-size:21px;letter-spacing:.5px;text-transform:uppercase;background:linear-gradient(92deg,#ff2e72,#ff6aa0);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .brand .l2{font-family:Anton,Impact,sans-serif;font-size:21px;letter-spacing:.5px;text-transform:uppercase;color:#fff;margin-top:-2px;}
+  .brand small{color:var(--muted);font:700 9px Inter;letter-spacing:3px;text-transform:uppercase;margin-top:4px;}
+  select.arch{appearance:none;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:11px;font:700 12px Inter;padding:9px 28px 9px 11px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%238b95a8' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;}
+
+  #bubble{position:fixed;z-index:5;top:64px;left:50%;transform:translateX(-50%) scale(.9);max-width:min(80vw,360px);padding:11px 15px;border-radius:15px;background:#fff;color:#11141c;text-align:center;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;box-shadow:0 12px 34px #000b;}
+  #bubble.show{opacity:1;transform:translateX(-50%) scale(1);}
+  #bubble .txt{font-family:Anton,Impact,sans-serif;font-size:clamp(15px,4.6vw,22px);letter-spacing:.4px;text-transform:uppercase;line-height:1.04;}
+  #bubble small{display:block;color:#a3abba;font:700 8px Inter;letter-spacing:1.5px;margin-top:5px;text-transform:uppercase;}
+  #bubble:after{content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);border:9px solid transparent;border-top-color:#fff;border-bottom:0;}
+
+  #dock{position:fixed;left:0;right:0;bottom:0;z-index:6;max-height:74vh;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border-top:1px solid var(--border);border-radius:20px 20px 0 0;box-shadow:0 -14px 40px #000a;transition:transform .3s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom);}
+  #dock.collapsed{transform:translateY(calc(100% - 104px));}
+  .grip{position:sticky;top:0;display:flex;justify-content:center;padding:9px 0 5px;background:linear-gradient(var(--panel),var(--panel)82%,transparent);z-index:2;}
+  .grip span{width:42px;height:5px;border-radius:3px;background:#3a4252;}
+  aside{padding:6px 14px 14px;}
+  .sect{margin:14px 0;}
+  .sect>h3{margin:0 0 9px;font-family:Anton,Impact,sans-serif;font-weight:400;font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:#cfd6e3;}
+
+  .chars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .charbtn{border:1px solid var(--border);background:var(--card);border-radius:13px;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text);}
+  .charbtn.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--card));box-shadow:0 0 0 1px var(--accent);}
+  .charbtn .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:20px;background:#0d1018;border:1px solid var(--border-2);}
+  .charbtn small{font:700 9px Inter;line-height:1.1;text-align:center;color:var(--muted);}
+  .charbtn.on small{color:#fff;}
+  .src{margin-top:8px;font:600 10px Inter;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .src .pip{width:7px;height:7px;border-radius:50%;background:var(--muted-2);}
+  .src.glb .pip{background:var(--good);}
+  .src.prim .pip{background:var(--accent-2);}
+
+  .ladder{display:flex;flex-direction:column;gap:7px;}
+  .step{display:flex;align-items:center;gap:11px;border:1px solid var(--border);background:var(--card);border-radius:13px;padding:10px 12px;text-align:left;color:var(--text);}
+  .step .num{width:26px;height:26px;flex:0 0 auto;border-radius:50%;border:1.5px solid var(--border-2);display:grid;place-items:center;font:800 12px Inter;color:var(--muted);}
+  .step .body{flex:1;min-width:0;}
+  .step .body b{display:block;font:800 12.5px Inter;}
+  .step .body em{display:block;font:500 10.5px Inter;font-style:normal;color:var(--muted);margin-top:1px;}
+  .step .face{font-size:16px;opacity:.8;}
+  .step.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--card));}
+  .step.on .num{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent);}
+  .step.on .body b{color:#fff;}
+
+  .intensity{margin-top:12px;}
+  .intensity .row{display:flex;align-items:center;justify-content:space-between;}
+  .intensity h4{margin:0;font:800 11px Inter;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);}
+  .intensity .pct{font:900 18px Inter;color:var(--accent);}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:9px;border-radius:6px;margin:11px 0 2px;background:linear-gradient(90deg,var(--accent),var(--accent) var(--fill,0%),var(--card-2) var(--fill,0%));outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;border:4px solid var(--accent);box-shadow:0 2px 8px #0009;}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:4px solid var(--accent);}
+
+  .traits{display:flex;flex-wrap:wrap;gap:7px;min-height:8px;}
+  .trait{font:700 11px Inter;border:1px solid var(--border-2);background:var(--card);border-radius:999px;padding:6px 11px;display:flex;gap:6px;align-items:center;color:#dfe5ef;}
+  .trait .ic{font-size:12px;}
+  .traits .empty{color:var(--muted-2);font:600 11px Inter;}
+
+  .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;}
+  .act{border:1px solid var(--border);background:var(--card);border-radius:12px;padding:11px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--text);font:800 10px Inter;letter-spacing:.4px;text-transform:uppercase;}
+  .act span{font-size:16px;}
+  .act:active{background:var(--card-2);}
+
+  .tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{flex:0 0 auto;border:1px solid var(--border);background:var(--card);color:var(--muted);border-radius:999px;padding:9px 13px;font:800 11.5px Inter;white-space:nowrap;}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#11141c;}
+  .pane{display:none;}.pane.on{display:block;}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .grid.g3{grid-template-columns:repeat(3,1fr);}
+  .opt{border:1px solid var(--border);background:var(--card);border-radius:13px;padding:9px 5px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text);min-height:74px;justify-content:center;}
+  .opt .ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:18px;background:#0d1018;border:1px solid var(--border-2);overflow:hidden;}
+  .opt .ico.sw{width:38px;height:38px;border-radius:10px;border:2px solid var(--border-2);}
+  .opt small{font:700 9.5px Inter;text-align:center;line-height:1.1;color:var(--muted);}
+  .opt.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card));}
+  .opt.on small{color:#fff;}.opt.on .ico.sw{border-color:#fff;}
+
+  .anims{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-top:4px;}
+  .anims::-webkit-scrollbar{display:none;}
+  .abtn{flex:0 0 auto;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:13px;padding:10px 8px;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;font:800 10px Inter;letter-spacing:.3px;text-transform:uppercase;}
+  .abtn span{font-size:16px;}
+  .abtn.on{background:var(--accent-2);border-color:var(--accent-2);color:#11141c;}
+
+  .note{color:var(--muted);font:500 11px Inter;line-height:1.45;margin:8px 2px 0;}
+  .note b{color:#cdd4e1;}
+
+  @media(min-width:981px){
+    .rotate-hint{bottom:18px;}
+    #dock{position:static;max-height:none;overflow:visible;background:none;border:none;box-shadow:none;border-radius:0;transition:none;}
+    #dock.collapsed{transform:none;}
+    .grip{display:none;}
+    aside{position:fixed;top:74px;bottom:14px;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:18px;width:330px;}
+    #left{left:14px;} #right{right:14px;width:352px;}
+    aside::-webkit-scrollbar{width:8px;} aside::-webkit-scrollbar-thumb{background:#2a3344;border-radius:8px;}
+  }
+  @media(prefers-reduced-motion:reduce){#bubble{transition:none;}}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<canvas id="scene"></canvas>
+<div class="rotate-hint">
+  <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5"/><path d="M18 3v4h-4"/><path d="M20 12a8 8 0 0 1-14 5"/><path d="M6 21v-4h4"/></svg>
+  Drag to rotate
+</div>
+
+<div id="topbar">
+  <div class="brand"><div class="l1">Caricature</div><div class="l2">Lab</div><small>satirical avatar studio</small></div>
+  <select id="arch" class="arch" aria-label="Archetype pack"></select>
+</div>
+
+<div id="bubble"><div class="txt"></div><small>fictional slogan</small></div>
+
+<div id="dock">
+  <div class="grip" id="grip"><span></span></div>
+  <aside id="left">
+    <div class="sect">
+      <h3>Base Character</h3>
+      <div class="chars" id="chars"></div>
+      <div class="src" id="charsrc"><span class="pip"></span><span id="srctxt">Loading…</span></div>
+    </div>
+    <div class="sect">
+      <h3>Radicalization Level</h3>
+      <div class="ladder" id="ladder"></div>
+      <div class="intensity">
+        <div class="row"><h4>Intensity</h4><div class="pct" id="pct">0%</div></div>
+        <input type="range" id="intensity" min="0" max="100" value="0" aria-label="Intensity">
+      </div>
+    </div>
+    <div class="sect">
+      <h3>Active Traits</h3>
+      <div class="traits" id="traits"><span class="empty">Completely normal. Nothing added yet.</span></div>
+    </div>
+    <div class="sect">
+      <div class="actions">
+        <button class="act" id="saveBtn"><span>⤓</span>Save</button>
+        <button class="act" id="loadBtn"><span>⤒</span>Load</button>
+        <button class="act" id="resetBtn"><span>↺</span>Reset</button>
+      </div>
+    </div>
+  </aside>
+  <aside id="right">
+    <div class="sect" style="margin-top:4px">
+      <div class="tabs" id="tabs"></div>
+      <div id="content"></div>
+    </div>
+    <div class="sect"><h3>Animation</h3><div class="anims" id="anims"></div></div>
+  </aside>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/* =====================================================================
+   ASSET PATHS  — drop real files in here later; the app finds them.
+   assets/avatars/    GLB rigged characters     (Mixamo-style skeleton)
+   assets/clothing/   GLB clothing for anchors
+   assets/props/      GLB props for hand/back anchors
+   assets/animations/ GLB animation clips (Mixamo retarget)
+   assets/decals/     PNG textures for tattoos / signs / patches
+   ===================================================================== */
+const ASSETS = {
+  avatars:'assets/avatars/', clothing:'assets/clothing/', props:'assets/props/',
+  animations:'assets/animations/', decals:'assets/decals/',
+};
+// avatar GLB filename per character (placeholders for now)
+const AVATAR_GLB = {
+  youngFemale:'young-female.glb', youngMale:'young-male.glb',
+  olderFemale:'older-female.glb', olderMale:'older-male.glb',
+};
+// animation clip filename per UI animation (Mixamo exports, placeholders for now)
+const ANIM_GLB = {
+  idle:'idle.glb', chant:'chant.glb', point:'point.glb', holdSign:'hold-sign.glb', record:'record.glb',
+};
+// Named anchor points every accessory attaches to (works on GLB bones OR primitive)
+const ANCHOR_NAMES = ['Head','Face','Chest','Back','LeftHand','RightHand'];
+// Bone-name fragments to look for in a GLB skeleton (Mixamo etc.)
+const BONE_HINTS = {
+  Head:['head'], Face:['head'], Chest:['spine2','spine1','chest','upperchest','spine'],
+  Back:['spine2','spine1','chest','spine'], LeftHand:['lefthand','hand_l','hand.l','leftwrist'],
+  RightHand:['righthand','hand_r','hand.r','rightwrist'],
+};
+
+/* =====================================================================
+   1. ARCHETYPE PACKS  (meter adds POLITICAL BEHAVIOR ONLY)
+   ===================================================================== */
+const ARCHETYPES={
+  left:{id:'left',name:'Far-Left Caricature',accent:'#ff2e72',
+    levels:[
+      {name:'Neutral',face:'🙂',expr:'neutral',anim:'idle',buttons:0,sign:false,megaphone:false,phone:false,vest:false,boots:false,desc:'just a person'},
+      {name:'Online Activist',face:'😐',expr:'annoyed',anim:'record',buttons:2,sign:false,megaphone:false,phone:true,vest:false,boots:false,desc:'posts, replies, ratios'},
+      {name:'Street Protester',face:'😠',expr:'angry',anim:'holdSign',buttons:5,sign:true,megaphone:false,phone:false,vest:true,boots:true,desc:'loud and on the curb'},
+      {name:'Radical Caricature',face:'😤',expr:'shouting',anim:'chant',buttons:9,sign:true,megaphone:true,phone:false,vest:true,boots:true,desc:'maximum overdrive'},
+    ],
+    slogans:{1:['RATIO + L + YOU FELL OFF','THIS IS PROBLEMATIC ACTUALLY','DO BETTER, BESTIE','TOUCH GRASS? NEVER'],
+             2:['LATTES NOT LANDLORDS','HONK IF YOU\'RE COMPLICIT','SEIZE THE VIBES','DECOLONIZE BRUNCH'],
+             3:['ABOLISH MONDAYS','TAX THE SKY','EVERYTHING IS A SYSTEM','LOUDER FOR THE ALGORITHM']}},
+  right:{id:'right',name:'Far-Right Caricature',accent:'#3b82f6',locked:true},
+  corporate:{id:'corporate',name:'Corporate Drone',accent:'#10b981',locked:true},
+  influencer:{id:'influencer',name:'Influencer',accent:'#e879f9',locked:true},
+  conspiracy:{id:'conspiracy',name:'Conspiracy Guy',accent:'#f59e0b',locked:true},
+};
+
+/* =====================================================================
+   2. BASE CHARACTERS (primitive fallback proportions)
+   ===================================================================== */
+const BASES={
+  youngFemale:{id:'youngFemale',label:'Young<br>Female',icon:'👩',skin:0xf0c6a4,shoulder:.50,hip:.52,torsoLen:.92,torsoRad:.44,limb:.13,headW:.93,headH:1.05,chest:true,belly:false,glasses:false,hair:'long',hairColor:0x3a2a1c,cloth:0x9aa0ad,clothKind:'tee'},
+  youngMale:{id:'youngMale',label:'Young<br>Male',icon:'👨',skin:0xe2ab82,shoulder:.63,hip:.43,torsoLen:1.0,torsoRad:.52,limb:.16,headW:1.0,headH:.98,chest:false,belly:false,glasses:false,hair:'short',hairColor:0x241c14,cloth:0x3a4150,clothKind:'hoodie'},
+  olderFemale:{id:'olderFemale',label:'Older<br>Female',icon:'👩‍🦳',skin:0xe9c2a6,shoulder:.52,hip:.55,torsoLen:.93,torsoRad:.49,limb:.14,headW:.96,headH:1.0,chest:true,belly:false,glasses:true,hair:'bob',hairColor:0xb9b9bd,cloth:0x7a5d86,clothKind:'tee'},
+  olderMale:{id:'olderMale',label:'Older<br>Male',icon:'👨‍🦳',skin:0xd8a585,shoulder:.61,hip:.5,torsoLen:1.0,torsoRad:.58,limb:.17,headW:1.02,headH:.97,chest:false,belly:true,glasses:true,hair:'bald',hairColor:0x9a9a9e,cloth:0x42506a,clothKind:'tee'},
+};
+
+/* =====================================================================
+   3. STATE
+   ===================================================================== */
+const NEUTRAL=()=>({hair:'natural',clothing:null,boots:false,vest:false,
+  rainbowShirt:false,dress:false,pridePin:false,
+  causes:{eco:false,anticap:false,unity:false,solidarity:false},
+  megaphone:false,sign:false,phone:false,backpack:false,buttons:0,
+  tattoos:{lightning:false,flower:false,slogan:false},
+  piercings:{nose:false,eyebrow:false,ears:false},expr:'neutral',anim:'idle'});
+let baseId='youngFemale', base=BASES[baseId];
+const state=Object.assign({},NEUTRAL());
+let level=0, intensity=0, arch='left';
+
+/* =====================================================================
+   4. THREE.JS
+   ===================================================================== */
+const canvas=document.getElementById('scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.1,100);camera.position.set(0,1.7,6.6);
+const controls=new OrbitControls(camera,canvas);controls.target.set(0,1.45,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.enablePan=false;controls.minDistance=3.6;controls.maxDistance=10;controls.minPolarAngle=.5;controls.maxPolarAngle=Math.PI*.62;
+scene.add(new THREE.HemisphereLight(0xcdddff,0x12141c,1.0));
+const key=new THREE.DirectionalLight(0xffffff,1.7);key.position.set(3.5,6.5,4.2);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.camera.near=1;key.shadow.camera.far=22;key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=7;key.shadow.camera.bottom=-2;scene.add(key);
+scene.add(Object.assign(new THREE.DirectionalLight(0x7fb0ff,.55),{position:new THREE.Vector3(-5,3,-3.5)}));
+scene.add(Object.assign(new THREE.DirectionalLight(0xff7fb0,.4),{position:new THREE.Vector3(0,4,-6)}));
+const ground=new THREE.Mesh(new THREE.CircleGeometry(5,56),new THREE.MeshStandardMaterial({color:0x0d1018,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const ring=new THREE.Mesh(new THREE.RingGeometry(1.0,1.06,64),new THREE.MeshBasicMaterial({color:0x2a3344,transparent:true,opacity:.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.01;scene.add(ring);
+
+const loader=new GLTFLoader();
+
+/* =====================================================================
+   5. TEXTURES  (swap for assets/decals/*.png later)
+   ===================================================================== */
+function cTex(draw,w=256,h=256){const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');draw(x,w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
+const rainbowTex=cTex((x,w,h)=>{const cols=['#e40303','#ff8c00','#ffed00','#1f9e2c','#0a52ff','#7b1fa2'];const bw=h/cols.length;cols.forEach((c,i)=>{x.fillStyle=c;x.fillRect(0,i*bw,w,bw+1);});},64,256);
+function symTex(t){return cTex((x,w,h)=>{x.clearRect(0,0,w,h);x.save();x.translate(w/2,h/2);x.fillStyle='#15171e';
+  if(t==='lightning'){x.beginPath();x.moveTo(22,-92);x.lineTo(-30,-4);x.lineTo(10,-4);x.lineTo(-22,92);x.lineTo(42,-10);x.lineTo(2,-10);x.closePath();x.fill();}
+  else if(t==='flower'){for(let i=0;i<6;i++){x.save();x.rotate(i*Math.PI/3);x.beginPath();x.ellipse(0,-46,26,40,0,0,7);x.fill();x.restore();}x.fillStyle='#ffd23f';x.beginPath();x.arc(0,0,24,0,7);x.fill();}
+  else{x.rotate(-.1);x.font='900 64px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('NO',0,-32);x.fillText('THANKS',0,38);x.lineWidth=8;x.strokeStyle='#15171e';x.strokeRect(-112,-94,224,188);}x.restore();});}
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
+function patchTex(k){return cTex((x,w,h)=>{const m=({eco:['#1f7a44','PLANET','OVER PROFIT','#d7ffe6'],anticap:['#7a1f2e','SEIZE','THE VIBES','#ffd7df'],unity:['#2e4a7a','GENERIC','UNITY','#dde8ff'],solidarity:['#5a3a7a','MADE-UP','SOLIDARITY','#ecdcff']})[k];
+  x.fillStyle=m[0];rr(x,8,8,w-16,h-16,22);x.fill();x.lineWidth=8;x.strokeStyle=m[3];rr(x,20,20,w-40,h-40,16);x.stroke();
+  x.fillStyle=m[3];x.font='900 40px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText(m[1],w/2,h*.42);x.fillText(m[2],w/2,h*.6);x.font='700 16px Arial';x.fillText('(FICTIONAL)',w/2,h*.82);});}
+function signTex(){return cTex((x,w,h)=>{x.fillStyle='#efe7d4';x.fillRect(0,0,w,h);x.strokeStyle='#15171e';x.lineWidth=14;x.strokeRect(8,8,w-16,h-16);x.fillStyle='#c81d3a';x.font='900 56px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('CHANGE',w/2,h*.36);x.fillText('NOW!',w/2,h*.62);},256,256);}
+
+/* =====================================================================
+   6. AVATAR SYSTEM
+   avatarRoot      → holds the loaded/primitive character
+   anchors{}       → Object3D mount points (Head/Face/Chest/Back/LeftHand/RightHand)
+   prim{}          → primitive-only refs (face, hair, torso, arms…) for procedural look
+   acc{}           → accessory meshes (mode-agnostic), parented to anchors
+   mode            → 'glb' | 'primitive'
+   mixer/clipActions → AnimationMixer for GLB / Mixamo clips
+   ===================================================================== */
+const avatarRoot=new THREE.Group();scene.add(avatarRoot);
+let anchors={}, prim={}, acc={}, mode='primitive';
+let mixer=null, clipActions={}, activeAction=null, loadSeq=0;
+const mat=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.82,metalness:.04},o));
+const SKINr=.72;
+
+function disposeNode(o){o.traverse(n=>{if(n.geometry)n.geometry.dispose();if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());});}
+function clearAvatar(){
+  if(mixer){mixer.stopAllAction();mixer=null;}
+  clipActions={};activeAction=null;
+  for(let i=avatarRoot.children.length-1;i>=0;i--){const c=avatarRoot.children[i];disposeNode(c);avatarRoot.remove(c);}
+  anchors={};prim={};acc={};avatarRoot.position.set(0,0,0);avatarRoot.rotation.set(0,0,0);
+}
+function newAnchor(parent,x,y,z){const a=new THREE.Object3D();a.position.set(x,y,z);parent.add(a);return a;}
+
+/* ---------- PRIMITIVE CHARACTER (fallback) ---------- */
+function buildPrimitive(){
+  const B=base, skin=()=>mat(B.skin,{roughness:SKINr});
+  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(B.torsoRad,B.torsoLen,10,22),mat(B.cloth));torso.position.y=1.5;torso.scale.x=B.shoulder/.5*.92;avatarRoot.add(torso);prim.torso=torso;
+  if(B.chest){const ch=new THREE.Mesh(new THREE.SphereGeometry(B.torsoRad*.62,16,12),mat(B.cloth));ch.scale.set(1.25,.7,.8);ch.position.set(0,1.62,B.torsoRad*.55);avatarRoot.add(ch);prim.chestM=ch;}
+  if(B.belly){const bl=new THREE.Mesh(new THREE.SphereGeometry(B.torsoRad*.78,16,12),mat(B.cloth));bl.scale.set(1.05,.85,.9);bl.position.set(0,1.2,B.torsoRad*.32);avatarRoot.add(bl);prim.bellyM=bl;}
+  const sh=(s)=>{const j=new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.25,16,12),mat(B.cloth));j.position.set(s*B.shoulder,2.02,0);avatarRoot.add(j);};sh(1);sh(-1);
+  const pelvis=new THREE.Mesh(new THREE.CapsuleGeometry(B.hip*.9,.2,8,18),mat(0x2a3140));pelvis.position.y=.96;pelvis.scale.x=B.hip/.5;avatarRoot.add(pelvis);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.15,.18,.22,14),skin());neck.position.y=2.12;avatarRoot.add(neck);
+  const head=new THREE.Group();head.position.y=2.46;avatarRoot.add(head);prim.head=head;
+  const skull=new THREE.Mesh(new THREE.SphereGeometry(.5,30,26),skin());skull.scale.set(B.headW,B.headH,.96);head.add(skull);
+  const jaw=new THREE.Mesh(new THREE.SphereGeometry(.34,20,16),skin());jaw.scale.set(B.headW*(B.chest?.92:1.02),.7,.85);jaw.position.y=-.24;head.add(jaw);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.06,.16,10),skin());nose.position.set(0,-.02,.49);nose.rotation.x=Math.PI/2;head.add(nose);
+  const ew=mat(0xffffff,{roughness:.35}),pu=mat(0x1b1c24,{roughness:.35});
+  const eye=sx=>{const g=new THREE.Group();g.position.set(sx,.08,.43);const w=new THREE.Mesh(new THREE.SphereGeometry(.1,16,12),ew);w.scale.z=.55;g.add(w);const p=new THREE.Mesh(new THREE.SphereGeometry(.045,12,10),pu);p.position.z=.07;g.add(p);head.add(g);};eye(-.18);eye(.18);
+  const bm=mat(B.hair==='bald'?0x8a8a8e:B.hairColor);
+  const brow=sx=>{const b=new THREE.Mesh(new THREE.BoxGeometry(.17,.045,.06),bm);b.position.set(sx,.25,.46);head.add(b);return b;};prim.browL=brow(-.18);prim.browR=brow(.18);
+  const mm=mat(0x7e2433,{roughness:.6});
+  const mLine=new THREE.Mesh(new THREE.BoxGeometry(.2,.04,.05),mm);mLine.position.set(0,-.18,.45);
+  const mFrown=new THREE.Mesh(new THREE.TorusGeometry(.12,.026,8,16,Math.PI),mm);mFrown.position.set(0,-.12,.45);
+  const mOpen=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),mat(0x49141f));mOpen.scale.set(1,1.3,.5);mOpen.position.set(0,-.2,.43);
+  const mSmirk=new THREE.Mesh(new THREE.BoxGeometry(.18,.045,.05),mm);mSmirk.position.set(.02,-.18,.45);mSmirk.rotation.z=-.28;
+  [mLine,mFrown,mOpen,mSmirk].forEach(m=>head.add(m));prim.mouths={neutral:mLine,annoyed:mFrown,angry:mFrown,shouting:mOpen,smug:mSmirk};
+  if(B.glasses){const gm=mat(0x20242e,{metalness:.4,roughness:.4});const gl=new THREE.Group();[-.18,.18].forEach(sx=>{const l=new THREE.Mesh(new THREE.TorusGeometry(.12,.018,10,22),gm);l.position.set(sx,.08,.46);gl.add(l);});const br=new THREE.Mesh(new THREE.BoxGeometry(.1,.018,.02),gm);br.position.set(0,.08,.47);gl.add(br);head.add(gl);}
+  // hair
+  const hl=mat(B.hairColor,{roughness:.95}),hr=mat(B.hairColor,{roughness:.95});prim.hairMatL=hl;prim.hairMatR=hr;const hair=new THREE.Group();head.add(hair);
+  const dome=()=>{const l=new THREE.Mesh(new THREE.SphereGeometry(.53,20,16,0,Math.PI,0,Math.PI*.62),hl);const r=new THREE.Mesh(new THREE.SphereGeometry(.53,20,16,Math.PI,Math.PI,0,Math.PI*.62),hr);l.scale.set(B.headW,B.headH,.98);r.scale.set(B.headW,B.headH,.98);hair.add(l,r);};
+  if(B.hair==='long'){dome();const back=new THREE.Mesh(new THREE.CapsuleGeometry(.36,.7,8,16),hl);back.position.set(0,-.35,-.16);back.scale.z=.6;hair.add(back);}
+  else if(B.hair==='short'){const l=new THREE.Mesh(new THREE.SphereGeometry(.52,20,16,0,Math.PI,0,Math.PI*.5),hl);const r=new THREE.Mesh(new THREE.SphereGeometry(.52,20,16,Math.PI,Math.PI,0,Math.PI*.5),hr);l.position.y=.04;r.position.y=.04;l.scale.set(B.headW,B.headH*.9,.98);r.scale.set(B.headW,B.headH*.9,.98);hair.add(l,r);}
+  else if(B.hair==='bob'){dome();const flare=new THREE.Mesh(new THREE.CylinderGeometry(.46,.56,.42,18,1,true),new THREE.MeshStandardMaterial({color:B.hairColor,roughness:.95,side:THREE.DoubleSide}));flare.position.set(0,-.2,-.02);hair.add(flare);prim.hairFlare=flare;}
+  else{const hs=new THREE.Mesh(new THREE.TorusGeometry(.46,.08,10,28,Math.PI*1.3),hl);hs.rotation.x=Math.PI/2;hs.rotation.z=Math.PI*.85;hs.position.y=-.05;hair.add(hs);}
+  // arms (shoulder pivot)
+  const arm=s=>{const g=new THREE.Group();g.position.set(s*B.shoulder,2.0,0);
+    const up=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb,.55,8,14),skin());up.position.y=-.34;g.add(up);
+    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.02,14,10),skin()),{position:new THREE.Vector3(0,-.62,0)}));
+    const fore=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*.92,.5,8,14),skin());fore.position.set(0,-.95,.07);fore.rotation.x=.18;g.add(fore);
+    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.1,12,10),skin()),{position:new THREE.Vector3(0,-1.22,.12)}));
+    const sleeve=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.12,.5,8,14),mat(B.cloth));sleeve.position.y=-.34;sleeve.visible=false;g.add(sleeve);
+    avatarRoot.add(g);return{group:g,sleeve};};
+  prim.armL=arm(-1);prim.armR=arm(1);
+  // legs
+  const leg=s=>{const g=new THREE.Group();g.position.set(s*(B.hip*.5),.92,0);
+    const th=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.25,.42,8,14),mat(0x2a3140));th.position.y=-.32;g.add(th);
+    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.15,14,10),mat(0x2a3140)),{position:new THREE.Vector3(0,-.58,0)}));
+    const ca=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.05,.42,8,14),mat(0x2a3140));ca.position.y=-.82;g.add(ca);
+    const shoe=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.46),mat(0x16181f));shoe.position.set(0,-1.16,.07);g.add(shoe);
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(.36,.46,.52),mat(0x101218));boot.position.set(0,-1.0,.06);boot.visible=false;g.add(boot);
+    avatarRoot.add(g);return{group:g,shoe,boot};};
+  prim.legL=leg(-1);prim.legR=leg(1);
+  // primitive clothing extras (base outfit) — these are part of the body, not anchors
+  const hood=new THREE.Mesh(new THREE.SphereGeometry(.38,16,12,0,Math.PI*2,0,Math.PI*.6),mat(B.cloth));hood.position.set(0,2.1,-.16);hood.rotation.x=-.5;hood.visible=(B.clothKind==='hoodie');avatarRoot.add(hood);prim.hood=hood;
+  const dress=new THREE.Mesh(new THREE.CylinderGeometry(.42,.92,.95,18,1,true),mat(0x7a4bcf,{side:THREE.DoubleSide,roughness:.85}));dress.position.y=.72;dress.visible=false;avatarRoot.add(dress);prim.dress=dress;
+  const chestDecal=new THREE.Mesh(new THREE.PlaneGeometry(.5,.5),new THREE.MeshStandardMaterial({transparent:true,roughness:.9}));chestDecal.position.set(0,1.55,B.torsoRad+.025);chestDecal.visible=false;avatarRoot.add(chestDecal);prim.chestDecal=chestDecal;
+
+  // anchors — primitive
+  anchors.Head=newAnchor(head,0,.5,0);
+  anchors.Face=newAnchor(head,0,0,0);
+  anchors.Chest=newAnchor(avatarRoot,0,1.55,B.torsoRad);
+  anchors.Back=newAnchor(avatarRoot,0,1.55,-B.torsoRad);
+  anchors.RightHand=newAnchor(prim.armR.group,0,-1.26,.12);
+  anchors.LeftHand=newAnchor(prim.armL.group,0,-1.26,.12);
+
+  avatarRoot.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  mode='primitive';
+}
+
+/* ---------- GLB CHARACTER ---------- */
+function fitModel(obj,targetH=2.5){
+  const box=new THREE.Box3().setFromObject(obj);const size=new THREE.Vector3();box.getSize(size);
+  const s=targetH/(size.y||1);obj.scale.setScalar(s);
+  const box2=new THREE.Box3().setFromObject(obj);const c=new THREE.Vector3();box2.getCenter(c);
+  obj.position.x-=c.x;obj.position.z-=c.z;obj.position.y-=box2.min.y;
+}
+function findBone(root,hints){let f=null;root.traverse(o=>{if(f)return;const n=(o.name||'').toLowerCase();if(hints.some(h=>n.includes(h)))f=o;});return f;}
+function setupGLB(gltf){
+  const model=gltf.scene;model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;}});
+  fitModel(model);avatarRoot.add(model);
+  // anchors — prefer real bones, fall back to estimated points on the model
+  const box=new THREE.Box3().setFromObject(model);const sz=new THREE.Vector3();box.getSize(sz);const topY=box.max.y,midY=(box.min.y+box.max.y)*.55;
+  ANCHOR_NAMES.forEach(name=>{
+    const bone=findBone(model,BONE_HINTS[name]);
+    if(bone){anchors[name]=newAnchor(bone,0,0,0);}
+    else{
+      const p={Head:[0,topY-.1,0],Face:[0,topY-.25,sz.z*.4],Chest:[0,midY,sz.z*.45],Back:[0,midY,-sz.z*.45],RightHand:[ -sz.x*.55,midY-.25,.1],LeftHand:[sz.x*.55,midY-.25,.1]}[name];
+      anchors[name]=newAnchor(model,p[0],p[1],p[2]);
+    }
+  });
+  // animation mixer + any clips packed in the avatar GLB
+  mixer=new THREE.AnimationMixer(model);
+  (gltf.animations||[]).forEach(clip=>{clipActions[clip.name]=mixer.clipAction(clip);});
+  mode='glb';
+}
+
+/* ---------- ACCESSORIES (anchor-based, placeholder geometry) ----------
+   Replace any of these with a loaded GLB later via attachGLB(anchorName,file). */
+function buildAccessories(){
+  const B=base;
+  // CHEST: vest, buttons, cause patches, rainbow shirt, pride pin
+  const vest=new THREE.Mesh(new THREE.CylinderGeometry(.5,.46,.85,20,1,true),mat(0x42502f,{side:THREE.DoubleSide,roughness:.85}));vest.position.set(0,-.05,-.42);vest.visible=false;anchors.Chest.add(vest);acc.vest=vest;
+  acc.buttons=[];const bc=[0xff2e72,0xffd23f,0x2f6bff,0x28c76f,0xa259ff];
+  for(let i=0;i<9;i++){const b=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.025,16),mat(bc[i%bc.length],{roughness:.5}));b.position.set(-.3+(i%3)*.3,.28-Math.floor(i/3)*.28,.02);b.rotation.x=Math.PI/2;b.visible=false;anchors.Chest.add(b);acc.buttons.push(b);}
+  acc.causes={};['eco','anticap','unity','solidarity'].forEach((k,i)=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(.22,.22),new THREE.MeshStandardMaterial({map:patchTex(k),transparent:true}));p.position.set(-.3+(i%2)*.6,-.16-Math.floor(i/2)*.26,.03);p.visible=false;anchors.Chest.add(p);acc.causes[k]=p;});
+  const rainbow=new THREE.Mesh(new THREE.PlaneGeometry(.5,.6),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.85}));rainbow.position.set(0,0,.015);rainbow.visible=false;anchors.Chest.add(rainbow);acc.rainbow=rainbow;
+  const pridePin=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.025,16),new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.5}));pridePin.position.set(.28,.36,.02);pridePin.rotation.x=Math.PI/2;pridePin.visible=false;anchors.Chest.add(pridePin);acc.pridePin=pridePin;
+  // BACK: backpack
+  const backpack=new THREE.Mesh(new THREE.BoxGeometry(.62,.78,.28),mat(0x2f3b2a));backpack.position.set(0,0,-.18);backpack.visible=false;anchors.Back.add(backpack);acc.backpack=backpack;
+  // RIGHT HAND: sign, megaphone, phone
+  const sign=new THREE.Group();sign.add(new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1.05,8),mat(0x6b4a2f)));const board=new THREE.Mesh(new THREE.PlaneGeometry(.8,.8),new THREE.MeshStandardMaterial({map:signTex(),side:THREE.DoubleSide,roughness:.9}));board.position.y=.68;sign.add(board);sign.position.set(.1,-.1,.05);sign.visible=false;anchors.RightHand.add(sign);acc.sign=sign;
+  const mega=new THREE.Group();const horn=new THREE.Mesh(new THREE.CylinderGeometry(.24,.09,.38,18,1,true),mat(0xd23a3a,{side:THREE.DoubleSide}));horn.position.y=.18;mega.add(horn);const mb=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.16,12),mat(0x21262f));mb.position.y=-.05;mega.add(mb);mega.position.set(.08,-.05,.1);mega.rotation.z=-.5;mega.visible=false;anchors.RightHand.add(mega);acc.mega=mega;
+  const phone=new THREE.Group();phone.add(new THREE.Mesh(new THREE.BoxGeometry(.16,.32,.03),mat(0x111318)));const scr=new THREE.Mesh(new THREE.PlaneGeometry(.13,.27),mat(0x2f6bff,{emissive:0x18306e,emissiveIntensity:.7}));scr.position.z=.02;phone.add(scr);phone.position.set(.04,0,.07);phone.visible=false;anchors.RightHand.add(phone);acc.phone=phone;
+  // LEFT HAND: forearm tattoos
+  acc.tattoos={};['lightning','flower','slogan'].forEach((t,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(.18,.18),new THREE.MeshStandardMaterial({map:symTex(t),transparent:true}));m.position.set(0,.3,.06);m.visible=false;anchors.LeftHand.add(m);acc.tattoos[t]=m;});
+  // FACE: piercings
+  const metal=mat(0xdadae2,{metalness:.8,roughness:.3});
+  const noseR=new THREE.Mesh(new THREE.TorusGeometry(.045,.012,8,16),metal);noseR.position.set(.06,-.08,.48);noseR.rotation.x=Math.PI/2;
+  const browR=new THREE.Mesh(new THREE.TorusGeometry(.04,.011,8,16),metal);browR.position.set(-.26,.23,.41);
+  const earL=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),metal);earL.position.set(-.49,-.04,.05);
+  const earR=new THREE.Mesh(new THREE.SphereGeometry(.03,10,8),metal);earR.position.set(.49,-.04,.05);
+  [noseR,browR,earL,earR].forEach(p=>{p.visible=false;anchors.Face.add(p);});
+  acc.piercings={nose:noseR,eyebrow:browR,ears:[earL,earR]};
+
+  avatarRoot.traverse(o=>{if(o.isMesh){o.castShadow=true;}});
+}
+
+/* Hook for later: drop a real GLB onto any anchor */
+async function attachGLB(anchorName,file){
+  try{const g=await loader.loadAsync(ASSETS.props+file);anchors[anchorName].add(g.scene);return g.scene;}
+  catch(e){console.warn('No GLB for',anchorName,file);return null;}
+}
+
+/* ---------- LOAD A CHARACTER (primitive first, upgrade to GLB if present) ---------- */
+function loadCharacter(id){
+  baseId=id;base=BASES[id];const seq=++loadSeq;
+  clearAvatar();buildPrimitive();buildAccessories();apply();
+  setSrc('prim','Placeholder mesh');
+  // try to upgrade to the real GLB
+  loader.loadAsync(ASSETS.avatars+AVATAR_GLB[id]).then(gltf=>{
+    if(seq!==loadSeq)return;            // a newer load started — ignore
+    clearAvatar();setupGLB(gltf);buildAccessories();apply();setAnim(state.anim,true);
+    setSrc('glb','GLB: '+AVATAR_GLB[id]);
+  }).catch(()=>{ if(seq===loadSeq)setSrc('prim','Placeholder mesh (no GLB found)'); });
+}
+function setSrc(kind,txt){const el=document.getElementById('charsrc');el.className='src '+kind;document.getElementById('srctxt').textContent=txt;}
+
+/* =====================================================================
+   7. APPLY STATE  (primitive look guarded; accessories work in both modes)
+   ===================================================================== */
+const HAIR={natural:'base',black:0x14151a,brown:0x4a3525,blonde:0xd8b367,auburn:0x7a3b27,gray:0xb9b9bd,blue:0x2f6bff,pink:0xff5fb0,green:0x28c76f,purple:0xa259ff,teal:0x21c8c8,orange:0xff8c2f,split:'split',rainbow:'rainbow'};
+const CLOTH={tee:0x9aa0ad,hoodie:0x3a4150,vest:0x42502f,shirt:0x1f2733,jacket:0x6b4a2f};
+function effectiveClothing(){return state.vest?'vest':(state.clothing||base.clothKind);}
+
+function apply(){
+  if(!anchors.Chest)return;
+  // ----- accessories (work on GLB + primitive) -----
+  acc.vest.visible=state.vest; acc.vest.material.color.setHex(CLOTH.vest);
+  acc.buttons.forEach((b,i)=>b.visible=i<state.buttons);
+  Object.keys(acc.causes).forEach(k=>acc.causes[k].visible=!!state.causes[k]);
+  acc.rainbow.visible=state.rainbowShirt;
+  acc.pridePin.visible=state.pridePin;
+  acc.backpack.visible=state.backpack;
+  acc.sign.visible=state.sign;acc.mega.visible=state.megaphone;acc.phone.visible=state.phone;
+  Object.keys(acc.tattoos).forEach(k=>acc.tattoos[k].visible=state.tattoos[k]);
+  acc.piercings.nose.visible=state.piercings.nose;acc.piercings.eyebrow.visible=state.piercings.eyebrow;acc.piercings.ears.forEach(e=>e.visible=state.piercings.ears);
+
+  // ----- primitive-only look (hair colour, clothing colour, expression, boots, dress/hood) -----
+  if(mode==='primitive'){
+    const setHair=(cl,cr,map=null)=>{[prim.hairMatL,prim.hairMatR].forEach((m,i)=>{m.color.setHex(i===0?cl:cr);m.map=map;m.needsUpdate=true;});};
+    if(state.hair==='natural')setHair(base.hairColor,base.hairColor);
+    else if(state.hair==='split')setHair(0xff5fb0,0x2f6bff);
+    else if(state.hair==='rainbow')setHair(0xffffff,0xffffff,rainbowTex);
+    else{const c=HAIR[state.hair];setHair(c,c);}
+    if(prim.hairFlare)prim.hairFlare.material.color.setHex(state.hair==='natural'?base.hairColor:(typeof HAIR[state.hair]==='number'?HAIR[state.hair]:base.hairColor));
+    const ck=effectiveClothing(),cc=CLOTH[ck];
+    prim.torso.material.color.setHex(cc);if(prim.chestM)prim.chestM.material.color.setHex(cc);if(prim.bellyM)prim.bellyM.material.color.setHex(cc);
+    prim.hood.visible=(ck==='hoodie');prim.hood.material.color.setHex(cc);
+    const sleeves=(ck==='hoodie'||ck==='jacket')||ck==='vest';[prim.armL,prim.armR].forEach(a=>{a.sleeve.visible=sleeves;a.sleeve.material.color.setHex(cc);});
+    if(ck==='shirt'){prim.chestDecal.material.map=symTex('slogan');prim.chestDecal.material.needsUpdate=true;prim.chestDecal.visible=!state.rainbowShirt;}else prim.chestDecal.visible=false;
+    prim.dress.visible=state.dress;
+    prim.legL.boot.visible=state.boots;prim.legR.boot.visible=state.boots;prim.legL.shoe.visible=!state.boots;prim.legR.shoe.visible=!state.boots;
+    Object.values(prim.mouths).forEach(m=>m.visible=false);(prim.mouths[state.expr]||prim.mouths.neutral).visible=true;
+    applyBrows(state.expr);
+  }
+  renderTraits();syncControls();
+}
+function applyBrows(expr){if(!prim.browL)return;const L=prim.browL,R=prim.browR,s=(o,y,rz)=>{o.position.y=y;o.rotation.z=rz;};
+  switch(expr){case'angry':s(L,.21,-.5);s(R,.21,.5);break;case'shouting':s(L,.25,-.55);s(R,.25,.55);break;case'annoyed':s(L,.19,.05);s(R,.19,-.05);break;case'smug':s(L,.29,.1);s(R,.21,-.25);break;default:s(L,.25,0);s(R,.25,0);}}
+
+/* =====================================================================
+   8. METER
+   ===================================================================== */
+function setIntensity(pct){intensity=pct;level=Math.min(3,Math.floor(pct/25.0001));const L=ARCHETYPES[arch].levels[level];
+  state.expr=L.expr;state.anim=L.anim;state.buttons=L.buttons;state.sign=L.sign;state.megaphone=L.megaphone;state.phone=L.phone;state.vest=L.vest;state.boots=L.boots;
+  document.getElementById('pct').textContent=Math.round(pct)+'%';document.getElementById('intensity').value=pct;document.getElementById('intensity').style.setProperty('--fill',pct+'%');
+  setAnim(L.anim,true);updateBubble();paintLadder();apply();}
+function setLevel(l){setIntensity([8,42,72,96][l]);}
+
+/* =====================================================================
+   9. SLOGAN BUBBLE
+   ===================================================================== */
+const bubble=document.getElementById('bubble');let bubbleTimer=null;
+function pickSlogan(){const p=ARCHETYPES[arch];if(!p.slogans||level<1)return null;const a=p.slogans[Math.min(level,3)]||p.slogans[1];return a[Math.floor(Math.random()*a.length)];}
+function updateBubble(){const s=pickSlogan();if(!s){bubble.classList.remove('show');return;}bubble.querySelector('.txt').textContent=s;bubble.classList.add('show');clearTimeout(bubbleTimer);if(state.anim!=='chant')bubbleTimer=setTimeout(()=>bubble.classList.remove('show'),3200);}
+
+/* =====================================================================
+   10. ANIMATION  (AnimationMixer for GLB clips; procedural for primitive)
+   ===================================================================== */
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function crossfade(action){if(!action)return;if(activeAction===action){action.play();return;}action.reset().setEffectiveWeight(1).fadeIn(.3).play();if(activeAction)activeAction.fadeOut(.3);activeAction=action;}
+async function setAnim(name,quiet){
+  state.anim=name;document.querySelectorAll('.abtn').forEach(b=>b.classList.toggle('on',b.dataset.a===name));
+  if(mode==='glb'&&mixer){
+    if(!clipActions[name]){ // lazy-load a Mixamo clip GLB if present
+      try{const g=await loader.loadAsync(ASSETS.animations+ANIM_GLB[name]);const clip=g.animations[0];if(clip){clip.name=name;clipActions[name]=mixer.clipAction(clip);}}catch(e){/* no clip file yet */}
+    }
+    if(clipActions[name])crossfade(clipActions[name]);
+  }
+  if(name!=='chant'&&prim.mouths){Object.values(prim.mouths).forEach(m=>m.visible=false);(prim.mouths[state.expr]||prim.mouths.neutral).visible=true;}
+  if(name==='chant'&&!quiet)updateBubble();
+}
+function poseTargets(){let lx=0,lz=.16,rx=0,rz=-.16;
+  if(state.sign||state.anim==='holdSign'){rx=-2.5;rz=-.1;lx=-2.4;lz=.1;}
+  if(state.phone||state.anim==='record'){rx=-1.95;rz=-.4;}
+  if(state.megaphone){rx=-2.05;rz=-.55;}
+  if(state.anim==='point'){rx=-1.45;rz=-.15;}
+  if(state.anim==='chant'&&!state.sign&&!state.megaphone){rx=-2.5;}
+  return{lx,lz,rx,rz};}
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);const dt=clock.getDelta(),t=clock.elapsedTime;
+  if(mixer)mixer.update(dt);
+  // procedural fallback only when on the primitive avatar with no GLB clip playing
+  if(mode==='primitive'&&prim.armR){
+    const tg=poseTargets();const aR=prim.armR.group.rotation,aL=prim.armL.group.rotation;let rxB=0,lxB=0,by=0;
+    if(!reduce){if(state.anim==='chant'){rxB=Math.sin(t*7)*.45;by=Math.abs(Math.sin(t*3.5))*.08;}
+      else if(state.anim==='point'){rxB=Math.sin(t*6)*.18;}
+      else if(state.anim==='record'){rxB=Math.sin(t*1.5)*.04;}
+      else{by=Math.sin(t*1.6)*.02;rxB=Math.sin(t*1.4)*.03;lxB=Math.sin(t*1.4+1)*.03;}}
+    aR.x+=((tg.rx+rxB)-aR.x)*.18;aR.z+=(tg.rz-aR.z)*.18;aL.x+=((tg.lx+lxB)-aL.x)*.18;aL.z+=(tg.lz-aL.z)*.18;
+    avatarRoot.position.y=by;
+    if(state.anim==='chant'&&!reduce){const o=Math.sin(t*7)>0;Object.values(prim.mouths).forEach(m=>m.visible=false);(o?prim.mouths.shouting:prim.mouths.neutral).visible=true;}
+  }
+  if(!reduce)avatarRoot.rotation.y=Math.sin(t*.5)*.04;
+  controls.update();renderer.render(scene,camera);}
+animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+/* =====================================================================
+   11. UI DATA
+   ===================================================================== */
+const HAIR_UI=[['natural','Natural'],['black','Black'],['brown','Brown'],['blonde','Blonde'],['auburn','Auburn'],['gray','Gray'],['blue','Blue'],['pink','Pink'],['green','Green'],['purple','Purple'],['teal','Teal'],['orange','Orange'],['split','Split'],['rainbow','Rainbow']];
+const HAIRHEX={black:'#14151a',brown:'#4a3525',blonde:'#d8b367',auburn:'#7a3b27',gray:'#b9b9bd',blue:'#2f6bff',pink:'#ff5fb0',green:'#28c76f',purple:'#a259ff',teal:'#21c8c8',orange:'#ff8c2f'};
+const CLOTH_UI=[['tee','Tee','👕'],['hoodie','Hoodie','🧥'],['vest','Activist vest','🦺'],['shirt','Protest shirt','✊'],['jacket','Thrift jacket','🧥']];
+const FACE_UI=[['neutral','Neutral','🙂'],['annoyed','Annoyed','😐'],['angry','Angry','😠'],['shouting','Shouting','😮'],['smug','Smug','😏']];
+const ANIM_UI=[['idle','Idle','🧍'],['chant','Chant','🙌'],['point','Point','👉'],['holdSign','Hold sign','🪧'],['record','Record','🎥']];
+
+/* =====================================================================
+   12. BUILD UI
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+const archSel=$('arch');
+Object.values(ARCHETYPES).forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name+(a.locked?'  (soon)':'');o.disabled=!!a.locked;archSel.appendChild(o);});
+archSel.value=arch;archSel.onchange=()=>{const a=ARCHETYPES[archSel.value];if(a.locked){archSel.value=arch;return;}arch=a.id;document.documentElement.style.setProperty('--accent',a.accent);buildLadder();setIntensity(intensity);};
+
+const charsEl=$('chars');
+Object.values(BASES).forEach(b=>{const btn=document.createElement('button');btn.className='charbtn'+(b.id===baseId?' on':'');btn.innerHTML=`<span class="av">${b.icon}</span><small>${b.label}</small>`;
+  btn.onclick=()=>{if(b.id===baseId)return;Object.assign(state,NEUTRAL());intensity=0;level=0;loadCharacter(b.id);setIntensity(0);document.querySelectorAll('.charbtn').forEach(x=>x.classList.remove('on'));btn.classList.add('on');rebuildPanes();};
+  charsEl.appendChild(btn);});
+
+function buildLadder(){const el=$('ladder');el.innerHTML='';ARCHETYPES[arch].levels.forEach((L,i)=>{const s=document.createElement('button');s.className='step';s.dataset.lvl=i;s.innerHTML=`<span class="num">${i+1}</span><span class="body"><b>${L.name}</b><em>${L.desc}</em></span><span class="face">${L.face}</span>`;s.onclick=()=>setLevel(i);el.appendChild(s);});paintLadder();}
+function paintLadder(){document.querySelectorAll('.step').forEach((s,i)=>s.classList.toggle('on',i===level));}
+$('intensity').addEventListener('input',e=>setIntensity(parseFloat(e.target.value)));
+
+const TABS=[['hair','Hair'],['clothing','Clothing'],['style','Style'],['causes','Causes'],['props','Props'],['tattoos','Tattoos'],['piercings','Piercings'],['face','Face']];
+let activeTab='hair';const tabsEl=$('tabs'),contentEl=$('content');
+function buildTabs(){tabsEl.innerHTML='';TABS.forEach(([id,name])=>{const t=document.createElement('button');t.className='tab'+(id===activeTab?' on':'');t.textContent=name;t.dataset.tab=id;t.onclick=()=>{activeTab=id;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===id));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+id));};tabsEl.appendChild(t);});}
+function pane(id){const p=document.createElement('div');p.className='pane'+(id===activeTab?' on':'');p.id='pane-'+id;contentEl.appendChild(p);return p;}
+function grid(g3){const d=document.createElement('div');d.className='grid'+(g3?' g3':'');return d;}
+function opt(label,ico,on,click){const b=document.createElement('button');b.className='opt'+(on?' on':'');b.innerHTML=`<span class="ico">${ico}</span><small>${label}</small>`;b.onclick=click;return b;}
+function swatch(color,on,click,grad){const b=document.createElement('button');b.className='opt'+(on?' on':'');b.innerHTML=`<span class="ico sw" style="background:${grad||color}"></span>`;b.onclick=click;return b;}
+function note(html){const n=document.createElement('div');n.className='note';n.innerHTML=html;return n;}
+
+function rebuildPanes(){contentEl.innerHTML='';
+  {const p=pane('hair');const g=grid();HAIR_UI.forEach(([k,name])=>{let grad=null,col='#4a3525';if(k==='natural')col='#'+base.hairColor.toString(16).padStart(6,'0');else if(k==='split')grad='linear-gradient(90deg,#ff5fb0 50%,#2f6bff 50%)';else if(k==='rainbow')grad='linear-gradient(90deg,#e40303,#ff8c00,#ffed00,#1f9e2c,#0a52ff,#7b1fa2)';else col=HAIRHEX[k];const b=swatch(col,state.hair===k,()=>{state.hair=k;apply();},grad);const lab=document.createElement('small');lab.textContent=name;b.appendChild(lab);g.appendChild(b);});p.appendChild(g);p.appendChild(note(mode==='glb'?'On a GLB avatar, hair comes from the model. Swatches drive the primitive fallback.':'Hair color is pure style. The meter never touches it.'));}
+  {const p=pane('clothing');const g=grid();CLOTH_UI.forEach(([k,name,em])=>g.appendChild(opt(name,em,effectiveClothing()===k,()=>{state.vest=(k==='vest');state.clothing=(k==='vest'?null:k);apply();})));p.appendChild(g);const g2=grid(true);g2.appendChild(opt('Combat boots','🥾',state.boots,()=>{state.boots=!state.boots;apply();}));p.appendChild(g2);}
+  {const p=pane('style');const g=grid(true);g.appendChild(opt('Rainbow shirt','🏳️‍🌈',state.rainbowShirt,()=>{state.rainbowShirt=!state.rainbowShirt;apply();}));g.appendChild(opt('Skirt / dress','👗',state.dress,()=>{state.dress=!state.dress;apply();}));g.appendChild(opt('Pride pin','📍',state.pridePin,()=>{state.pridePin=!state.pridePin;apply();}));p.appendChild(g);p.appendChild(note('<b>Self-expression, not extremism.</b> Off the meter completely.'));}
+  {const p=pane('causes');const g=grid(true);g.appendChild(opt('Planet patch','🌍',state.causes.eco,()=>{state.causes.eco=!state.causes.eco;apply();}));g.appendChild(opt('Anti-cap patch','🚫',state.causes.anticap,()=>{state.causes.anticap=!state.causes.anticap;apply();}));g.appendChild(opt('Unity patch','🤝',state.causes.unity,()=>{state.causes.unity=!state.causes.unity;apply();}));g.appendChild(opt('Solidarity patch','✊',state.causes.solidarity,()=>{state.causes.solidarity=!state.causes.solidarity;apply();}));p.appendChild(g);p.appendChild(note('All cause patches are <b>made-up and fictional</b> — no real countries, flags, or movements. Never added by the meter.'));}
+  {const p=pane('props');const g=grid(true);g.appendChild(opt('Protest sign','🪧',state.sign,()=>{state.sign=!state.sign;apply();}));g.appendChild(opt('Megaphone','📣',state.megaphone,()=>{state.megaphone=!state.megaphone;apply();}));g.appendChild(opt('Phone (record)','🎥',state.phone,()=>{state.phone=!state.phone;apply();}));g.appendChild(opt('Backpack','🎒',state.backpack,()=>{state.backpack=!state.backpack;apply();}));p.appendChild(g);const lab=document.createElement('div');lab.className='note';lab.innerHTML='<b>Buttons / pins</b>';p.appendChild(lab);const g2=grid();[0,2,5,9].forEach(n=>{const b=document.createElement('button');b.className='opt'+(state.buttons===n?' on':'');b.innerHTML=`<span class="ico">${n===0?'∅':n}</span><small>${n===0?'None':n+' pins'}</small>`;b.onclick=()=>{state.buttons=n;apply();};g2.appendChild(b);});p.appendChild(g2);}
+  {const p=pane('tattoos');const g=grid(true);g.appendChild(opt('Lightning','⚡',state.tattoos.lightning,()=>{state.tattoos.lightning=!state.tattoos.lightning;apply();}));g.appendChild(opt('Flower','🌸',state.tattoos.flower,()=>{state.tattoos.flower=!state.tattoos.flower;apply();}));g.appendChild(opt('Slogan decal','🔖',state.tattoos.slogan,()=>{state.tattoos.slogan=!state.tattoos.slogan;apply();}));p.appendChild(g);p.appendChild(note('All symbols are fictional.'));}
+  {const p=pane('piercings');const g=grid(true);g.appendChild(opt('Nose ring','💍',state.piercings.nose,()=>{state.piercings.nose=!state.piercings.nose;apply();}));g.appendChild(opt('Eyebrow ring','💍',state.piercings.eyebrow,()=>{state.piercings.eyebrow=!state.piercings.eyebrow;apply();}));g.appendChild(opt('Earrings','💎',state.piercings.ears,()=>{state.piercings.ears=!state.piercings.ears;apply();}));p.appendChild(g);}
+  {const p=pane('face');const g=grid();FACE_UI.forEach(([k,name,em])=>g.appendChild(opt(name,em,state.expr===k,()=>{state.expr=k;apply();})));p.appendChild(g);p.appendChild(note(mode==='glb'?'GLB expressions need face blendshapes; wired for the primitive now.':''));}
+}
+
+const animsEl=$('anims');
+function buildAnims(){animsEl.innerHTML='';ANIM_UI.forEach(([k,name,em])=>{const b=document.createElement('button');b.className='abtn'+(state.anim===k?' on':'');b.dataset.a=k;b.innerHTML=`<span>${em}</span>${name}`;b.onclick=()=>setAnim(k);animsEl.appendChild(b);});}
+
+function renderTraits(){const el=$('traits');const T=[];
+  if(state.hair!=='natural')T.push(['🎨',cap(state.hair)+' hair']);
+  const ck=effectiveClothing();if(ck!=='tee'&&ck!==base.clothKind&&!state.vest)T.push(['👕',CLOTH_UI.find(c=>c[0]===ck)[1]]);
+  if(state.vest)T.push(['🦺','Activist vest']);if(state.boots)T.push(['🥾','Combat boots']);
+  if(state.rainbowShirt)T.push(['🏳️‍🌈','Rainbow shirt']);if(state.dress)T.push(['👗','Skirt/dress']);if(state.pridePin)T.push(['📍','Pride pin']);
+  Object.keys(state.causes).forEach(k=>{if(state.causes[k])T.push(['🏷️',({eco:'Planet patch',anticap:'Anti-cap patch',unity:'Unity patch',solidarity:'Solidarity patch'})[k]]);});
+  if(state.sign)T.push(['🪧','Protest sign']);if(state.megaphone)T.push(['📣','Megaphone']);if(state.phone)T.push(['🎥','Recording']);if(state.backpack)T.push(['🎒','Backpack']);
+  if(state.buttons>0)T.push(['🔘',state.buttons+' buttons']);
+  Object.keys(state.tattoos).forEach(k=>{if(state.tattoos[k])T.push(['🖋️',cap(k)+' tattoo']);});
+  Object.keys(state.piercings).forEach(k=>{if(state.piercings[k])T.push(['💍',cap(k)+(k==='ears'?'':' ring')]);});
+  if(state.expr!=='neutral')T.push(['😠',cap(state.expr)+' face']);
+  if(state.anim!=='idle')T.push(['🎬',ANIM_UI.find(a=>a[0]===state.anim)[1]+' anim']);
+  if(!T.length){el.innerHTML='<span class="empty">Completely normal. Nothing added yet.</span>';return;}
+  el.innerHTML='';T.forEach(([ic,t])=>{const c=document.createElement('span');c.className='trait';c.innerHTML=`<span class="ic">${ic}</span>${t}`;el.appendChild(c);});}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+function syncControls(){$('pct').textContent=Math.round(intensity)+'%';$('intensity').value=intensity;$('intensity').style.setProperty('--fill',intensity+'%');paintLadder();rebuildPanes();buildAnims();}
+
+/* =====================================================================
+   13. SAVE / LOAD / RESET
+   ===================================================================== */
+$('saveBtn').onclick=async()=>{const blob=JSON.stringify({baseId,intensity,state});try{await navigator.clipboard.writeText(blob);toast('Avatar copied to clipboard');}catch{prompt('Copy this avatar code:',blob);}};
+$('loadBtn').onclick=()=>{const raw=prompt('Paste an avatar code:');if(!raw)return;try{const d=JSON.parse(raw);Object.assign(state,NEUTRAL(),d.state||{});const id=(d.baseId&&BASES[d.baseId])?d.baseId:baseId;loadCharacter(id);setIntensity(d.intensity||0);document.querySelectorAll('.charbtn').forEach((x,i)=>x.classList.toggle('on',Object.keys(BASES)[i]===id));toast('Avatar loaded');}catch{toast('Could not read that code');}};
+$('resetBtn').onclick=()=>{Object.assign(state,NEUTRAL());loadCharacter(baseId);setIntensity(0);bubble.classList.remove('show');toast('Reset to neutral');};
+let toastT=null;function toast(msg){let el=$('toast');if(!el){el=document.createElement('div');el.id='toast';el.style.cssText='position:fixed;z-index:30;left:50%;bottom:120px;transform:translateX(-50%);background:#11141c;color:#fff;border:1px solid var(--border-2);padding:10px 16px;border-radius:12px;font:700 12px Inter;box-shadow:0 8px 24px #000a;opacity:0;transition:opacity .2s;';document.body.appendChild(el);}el.textContent=msg;el.style.opacity='1';clearTimeout(toastT);toastT=setTimeout(()=>el.style.opacity='0',1600);}
+$('grip').onclick=()=>$('dock').classList.toggle('collapsed');
+
+/* =====================================================================
+   14. GO
+   ===================================================================== */
+document.documentElement.style.setProperty('--accent',ARCHETYPES[arch].accent);
+buildTabs();buildLadder();
+loadCharacter(baseId);   // builds primitive, then upgrades to GLB if a file is present
+setIntensity(0);
+</script>
+</body>
+</html>
