@@ -130,6 +130,14 @@
   Drag to rotate
 </div>
 
+<div id="boot" style="display:none;position:fixed;inset:0;z-index:50;background:#070809f2;color:#eef2f8;
+  align-items:center;justify-content:center;padding:28px;text-align:center;flex-direction:column;gap:14px;">
+  <div style="font-family:Anton,Impact,sans-serif;font-size:20px;letter-spacing:.5px;color:#ff6aa0;">3D didn't load</div>
+  <div id="bootmsg" style="font:500 14px Inter;max-width:340px;line-height:1.5;color:#cfd6e3;"></div>
+  <button onclick="location.reload()" style="margin-top:4px;border:1px solid #374257;background:#1a2030;color:#fff;
+    border-radius:12px;padding:11px 18px;font:800 13px Inter;">Reload</button>
+</div>
+
 <div id="topbar">
   <div class="brand"><div class="l1">Caricature</div><div class="l2">Lab</div><small>satirical avatar studio</small></div>
   <select id="arch" class="arch" aria-label="Archetype pack"></select>
@@ -174,6 +182,7 @@
   </aside>
 </div>
 
+<script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
 <script type="importmap">
 {
   "imports": {
@@ -270,12 +279,13 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 const scene=new THREE.Scene();
+const at=(o,x,y,z)=>{o.position.set(x,y,z);return o;}; // set position (never reassign .position — it's read-only)
 const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.1,100);camera.position.set(0,1.7,6.6);
 const controls=new OrbitControls(camera,canvas);controls.target.set(0,1.45,0);controls.enableDamping=true;controls.dampingFactor=.08;controls.enablePan=false;controls.minDistance=3.6;controls.maxDistance=10;controls.minPolarAngle=.5;controls.maxPolarAngle=Math.PI*.62;
 scene.add(new THREE.HemisphereLight(0xcdddff,0x12141c,1.0));
 const key=new THREE.DirectionalLight(0xffffff,1.7);key.position.set(3.5,6.5,4.2);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.camera.near=1;key.shadow.camera.far=22;key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=7;key.shadow.camera.bottom=-2;scene.add(key);
-scene.add(Object.assign(new THREE.DirectionalLight(0x7fb0ff,.55),{position:new THREE.Vector3(-5,3,-3.5)}));
-scene.add(Object.assign(new THREE.DirectionalLight(0xff7fb0,.4),{position:new THREE.Vector3(0,4,-6)}));
+scene.add(at(new THREE.DirectionalLight(0x7fb0ff,.55),-5,3,-3.5));
+scene.add(at(new THREE.DirectionalLight(0xff7fb0,.4),0,4,-6));
 const ground=new THREE.Mesh(new THREE.CircleGeometry(5,56),new THREE.MeshStandardMaterial({color:0x0d1018,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 const ring=new THREE.Mesh(new THREE.RingGeometry(1.0,1.06,64),new THREE.MeshBasicMaterial({color:0x2a3344,transparent:true,opacity:.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.01;scene.add(ring);
 
@@ -354,16 +364,16 @@ function buildPrimitive(){
   // arms (shoulder pivot)
   const arm=s=>{const g=new THREE.Group();g.position.set(s*B.shoulder,2.0,0);
     const up=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb,.55,8,14),skin());up.position.y=-.34;g.add(up);
-    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.02,14,10),skin()),{position:new THREE.Vector3(0,-.62,0)}));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.02,14,10),skin()),0,-.62,0));
     const fore=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*.92,.5,8,14),skin());fore.position.set(0,-.95,.07);fore.rotation.x=.18;g.add(fore);
-    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.1,12,10),skin()),{position:new THREE.Vector3(0,-1.22,.12)}));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.1,12,10),skin()),0,-1.22,.12));
     const sleeve=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.12,.5,8,14),mat(B.cloth));sleeve.position.y=-.34;sleeve.visible=false;g.add(sleeve);
     avatarRoot.add(g);return{group:g,sleeve};};
   prim.armL=arm(-1);prim.armR=arm(1);
   // legs
   const leg=s=>{const g=new THREE.Group();g.position.set(s*(B.hip*.5),.92,0);
     const th=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.25,.42,8,14),mat(0x2a3140));th.position.y=-.32;g.add(th);
-    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.15,14,10),mat(0x2a3140)),{position:new THREE.Vector3(0,-.58,0)}));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(B.limb*1.15,14,10),mat(0x2a3140)),0,-.58,0));
     const ca=new THREE.Mesh(new THREE.CapsuleGeometry(B.limb*1.05,.42,8,14),mat(0x2a3140));ca.position.y=-.82;g.add(ca);
     const shoe=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.46),mat(0x16181f));shoe.position.set(0,-1.16,.07);g.add(shoe);
     const boot=new THREE.Mesh(new THREE.BoxGeometry(.36,.46,.52),mat(0x101218));boot.position.set(0,-1.0,.06);boot.visible=false;g.add(boot);
@@ -648,6 +658,34 @@ document.documentElement.style.setProperty('--accent',ARCHETYPES[arch].accent);
 buildTabs();buildLadder();
 loadCharacter(baseId);   // builds primitive, then upgrades to GLB if a file is present
 setIntensity(0);
+
+// On phones the panel is a tall bottom sheet — start it collapsed so the
+// character is visible. Tap the grip handle to open it.
+if(innerWidth<981){ document.getElementById('dock').classList.add('collapsed'); }
+
+// Tell the boot watchdog we made it.
+window.__bootOK=true;
+</script>
+<script>
+/* Boot watchdog: if the 3D engine hasn't initialized in a few seconds,
+   show a clear message instead of a blank screen. */
+window.__bootErr=null;
+addEventListener('error',function(e){
+  if(window.__bootErr) return;
+  window.__bootErr=(e&&(e.message||(e.error&&e.error.message)))||null;
+},true);
+addEventListener('unhandledrejection',function(e){
+  if(!window.__bootErr) window.__bootErr=(e&&e.reason&&(e.reason.message||String(e.reason)))||null;
+});
+setTimeout(function(){
+  if(window.__bootOK) return;
+  var b=document.getElementById('boot'), msg=document.getElementById('bootmsg');
+  if(!b) return;
+  b.style.display='flex';
+  msg.innerHTML = window.__bootErr
+    ? ('A script error stopped it loading:<br><br><span style="color:#ff9bbb">'+String(window.__bootErr)+'</span><br><br>Reload to try again.')
+    : 'The 3D engine (Three.js) loads from the internet the first time. Connect to Wi‑Fi or cellular and reload. If you are online, your browser may be out of date.';
+},7000);
 </script>
 </body>
 </html>
