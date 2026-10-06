@@ -435,7 +435,7 @@ function newAnchor(parent,x,y,z){const a=new THREE.Object3D();a.position.set(x,y
 /* ---------- PRIMITIVE CHARACTER (fallback) ---------- */
 function buildPrimitive(){
   const B=base;
-  const skin=()=>mat(B.skin,{roughness:.56,metalness:0});
+  const skin=()=>new THREE.MeshPhysicalMaterial({color:B.skin,roughness:.62,metalness:0,clearcoat:.08,clearcoatRoughness:.8});
   const topMat=()=>mat(B.top,{roughness:.78});
   const pantsMat=()=>mat(B.pants,{roughness:.84});
   const G=(geo,m)=>new THREE.Mesh(geo,m);
@@ -473,21 +473,31 @@ function buildPrimitive(){
 
   // ---- head ----
   const head=new THREE.Group();head.position.y=headCY;avatarRoot.add(head);prim.head=head;
-  const skull=G(new THREE.SphereGeometry(R,32,28),skin());skull.scale.set(B.headW,B.headH,.95);head.add(skull);
-  const jaw=G(new THREE.SphereGeometry(R*.78,24,18),skin());jaw.scale.set(B.headW*.86,.8,.84);jaw.position.set(0,-R*.5,R*.05);head.add(jaw);
+  // One continuous sculpted face: temples, cheekbones and tapered chin.
+  const faceGeo=new THREE.SphereGeometry(R,64,48);
+  const fp=faceGeo.attributes.position;
+  for(let i=0;i<fp.count;i++){
+    let x=fp.getX(i),y=fp.getY(i),z=fp.getZ(i);const yn=y/R;
+    const jawTaper=yn<-.25?1-.24*Math.min(1,(-yn-.25)/.75):1;
+    x*=B.headW*jawTaper;y*=B.headH;
+    if(z>0){const cheek=Math.exp(-Math.pow((yn+.12)/.24,2));z+=R*.065*cheek*(1-Math.abs(x)/(R*B.headW));}
+    fp.setXYZ(i,x,y,z*.95);
+  }
+  faceGeo.computeVertexNormals();head.add(G(faceGeo,skin()));
   [-1,1].forEach(s=>{const e=G(new THREE.SphereGeometry(R*.2,12,10),skin());e.scale.set(.5,.95,.7);e.position.set(s*R*.95,-R*.02,0);head.add(e);});
   const nose=G(new THREE.SphereGeometry(R*.14,12,10),skin());nose.scale.set(.85,1.15,1.4);nose.position.set(0,-R*.05,R*.92);head.add(nose);
   // eyes
   const irisM=mat(0x2a2620,{roughness:.25}),whiteM=mat(0xf2f0ea,{roughness:.3});
-  const eye=sx=>{const g=new THREE.Group();g.position.set(sx,R*.12,R*.82);
-    const wh=G(new THREE.SphereGeometry(R*.19,16,12),whiteM);wh.scale.set(1,.6,.42);g.add(wh);
-    const ir=G(new THREE.SphereGeometry(R*.12,14,12),irisM);ir.position.z=R*.08;ir.scale.set(1,.95,.55);g.add(ir);
+  const eye=sx=>{const g=new THREE.Group();g.position.set(sx,R*.12,R*.89);
+    const wh=G(new THREE.SphereGeometry(R*.19,16,12),whiteM);wh.scale.set(1,.72,.5);g.add(wh);
+    const ir=G(new THREE.SphereGeometry(R*.12,14,12),irisM);ir.position.z=R*.085;ir.scale.set(.8,.9,.45);g.add(ir);
+    const pupil=G(new THREE.SphereGeometry(R*.055,16,12),mat(0x10131b,{roughness:.18}));pupil.position.z=R*.132;pupil.scale.z=.35;g.add(pupil);
     g.add(at(G(new THREE.SphereGeometry(R*.035,8,8),mat(0xffffff)),R*.035,R*.05,R*.15));
     const lid=G(new THREE.SphereGeometry(R*.22,16,10,0,Math.PI*2,0,Math.PI*.5),skin());lid.scale.set(1,.55,.55);lid.position.y=R*.06;lid.rotation.x=-.28;g.add(lid);
     head.add(g);return g;};
   prim.eyeL=eye(-R*.4);prim.eyeR=eye(R*.4);
   const bm=mat(B.hair==='thinning'?0x8f8f93:B.hairColor,{roughness:.7});
-  const brow=sx=>{const b=G(new THREE.BoxGeometry(R*.36,R*.09,R*.1),bm);b.position.set(sx,R*.32,R*.86);head.add(b);return b;};
+  const brow=sx=>{const b=G(new THREE.CapsuleGeometry(R*.038,R*.29,6,12),bm);b.geometry.rotateZ(Math.PI/2);b.position.set(sx,R*.32,R*.86);head.add(b);return b;};
   prim.browL=brow(-R*.4);prim.browR=brow(R*.4);
   const lipM=mat(0xb56a60,{roughness:.5});
   const mLine=G(new THREE.BoxGeometry(R*.4,R*.06,R*.08),lipM);mLine.position.set(0,-R*.56,R*.82);
@@ -511,12 +521,29 @@ function buildPrimitive(){
   else{const hs=G(new THREE.TorusGeometry(R*.9,R*.15,12,28,Math.PI*1.25),hl);hs.rotation.x=Math.PI/2;hs.rotation.z=Math.PI*.875;hs.position.y=-R*.15;hair.add(hs);
     const top=G(new THREE.SphereGeometry(R*1.0,20,14,0,Math.PI*2,0,Math.PI*.38),new THREE.MeshStandardMaterial({color:B.hairColor,roughness:.6,transparent:true,opacity:.55}));sc(top);hair.add(top);}
 
+  if(B.hair!=='thinning'){
+    for(let i=0;i<18;i++){
+      const phi=i/18*Math.PI*2;
+      const points=[];
+      for(let j=0;j<=12;j++){const theta=.10+j/12*(B.hair==='short'?1.32:1.72);points.push(new THREE.Vector3(Math.sin(theta)*Math.cos(phi)*R*1.058*B.headW,Math.cos(theta)*R*1.058*B.headH+(B.hair==='short'?R*.05:0),Math.sin(theta)*Math.sin(phi)*R*1.058));}
+      const strand=G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),16,R*.012,5,false),i<9?hl:hr);hair.add(strand);
+    }
+  }
+  // Collar and stitched center seam add readable garment detail.
+  const collar=G(new THREE.TorusGeometry(R*.49,.026,8,32),topMat());collar.rotation.x=Math.PI/2;collar.position.set(0,shoulderY+.02,0);avatarRoot.add(collar);prim.topMeshes.push(collar);
+  if(B.clothKind==='button'||B.clothKind==='blouse'){
+    for(let i=0;i<4;i++){const button=G(new THREE.SphereGeometry(.023,10,8),mat(0xe2ddd4,{roughness:.45}));button.position.set(0,shoulderY-.25-i*.16,rT*.68);avatarRoot.add(button);}
+  }
+
   // ---- arms ----
   const arm=s=>{const g=new THREE.Group();g.position.set(s*B.shoulder,shoulderY-.05,0);
     const up=G(new THREE.CapsuleGeometry(B.limbArm,B.armUpper,12,14),skin());up.position.y=-B.armUpper/2-.04;g.add(up);
     g.add(at(G(new THREE.SphereGeometry(B.limbArm*.98,14,12),skin()),0,-B.armUpper-.06,0));
     const fore=G(new THREE.CapsuleGeometry(B.limbArm*.9,B.armFore,12,14),skin());fore.position.set(0,-B.armUpper-B.armFore/2-.12,.04);g.add(fore);
-    g.add(at(G(new THREE.SphereGeometry(B.limbArm*1.05,14,12),skin()),0,-B.armUpper-B.armFore-.18,.06));
+    const hand=new THREE.Group();hand.position.set(0,-B.armUpper-B.armFore-.18,.06);
+    const palm=G(new THREE.SphereGeometry(B.limbArm,20,16),skin());palm.scale.set(.88,1.25,.5);hand.add(palm);
+    for(let f=0;f<4;f++){const finger=G(new THREE.CapsuleGeometry(B.limbArm*.17,B.limbArm*(.55+(f===1?.2:0)),6,10),skin());finger.position.set((f-1.5)*B.limbArm*.37,-B.limbArm*1.15,.015);hand.add(finger);}
+    const thumb=G(new THREE.CapsuleGeometry(B.limbArm*.23,B.limbArm*.6,6,10),skin());thumb.position.set(-s*B.limbArm*.85,-B.limbArm*.1,.045);thumb.rotation.z=-s*.45;hand.add(thumb);g.add(hand);
     const sUp=G(new THREE.CapsuleGeometry(B.limbArm*1.2,B.armUpper*.7,12,14),topMat());sUp.position.y=-B.armUpper*.42;sUp.visible=false;g.add(sUp);
     const sFore=G(new THREE.CapsuleGeometry(B.limbArm*1.05,B.armFore,12,14),topMat());sFore.position.set(0,-B.armUpper-B.armFore/2-.12,.04);sFore.visible=false;g.add(sFore);
     avatarRoot.add(g);return{group:g,sUp,sFore};};
@@ -560,7 +587,7 @@ function setupGLB(gltf){
     if(bone){anchors[name]=newAnchor(bone,0,0,0);}
     else{
       const p={Head:[0,topY-.1,0],Face:[0,topY-.25,sz.z*.4],Chest:[0,midY,sz.z*.45],Back:[0,midY,-sz.z*.45],RightHand:[ -sz.x*.55,midY-.25,.1],LeftHand:[sz.x*.55,midY-.25,.1]}[name];
-      anchors[name]=newAnchor(model,p[0],p[1],p[2]);
+      model.updateWorldMatrix(true,false);const local=model.worldToLocal(new THREE.Vector3(...p));anchors[name]=newAnchor(model,local.x,local.y,local.z);
     }
   });
   // animation mixer + any clips packed in the avatar GLB
@@ -610,13 +637,13 @@ async function attachGLB(anchorName,file){
 function loadCharacter(id){
   baseId=id;base=BASES[id];const seq=++loadSeq;
   clearAvatar();buildPrimitive();buildAccessories();apply();
-  setSrc('prim','Placeholder mesh');
+  setSrc('prim','Sculpted character');
   // try to upgrade to the real GLB
   loader.loadAsync(ASSETS.avatars+AVATAR_GLB[id]).then(gltf=>{
-    if(seq!==loadSeq)return;            // a newer load started — ignore
+    if(seq!==loadSeq){disposeNode(gltf.scene);return;}            // a newer load started — ignore
     clearAvatar();setupGLB(gltf);buildAccessories();apply();setAnim(state.anim,true);
     setSrc('glb','GLB: '+AVATAR_GLB[id]);
-  }).catch(()=>{ if(seq===loadSeq)setSrc('prim','Placeholder mesh (no GLB found)'); });
+  }).catch(()=>{ if(seq===loadSeq)setSrc('prim','Sculpted character · no GLB loaded'); });
 }
 function setSrc(kind,txt){const el=document.getElementById('charsrc');el.className='src '+kind;document.getElementById('srctxt').textContent=txt;}
 
